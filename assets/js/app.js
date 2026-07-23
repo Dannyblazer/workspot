@@ -802,7 +802,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView("landing")}>
             <div className="w-8 h-8 bg-[#0f172a] rounded-lg flex items-center justify-center"><I n="building" s={18} c="text-white" /></div>
-            <span className="text-xl font-bold text-[#0f172a]">DeskNear</span>
+            <span className="text-xl font-bold text-[#0f172a]">WorkSpot</span>
           </div>
           <div className="hidden md:flex items-center gap-6">
             {!user ? (
@@ -977,7 +977,7 @@ const HowItWorks = () => (
   <section className="py-16">
     <div className="max-w-7xl mx-auto px-4 sm:px-6">
       <div className="text-center mb-12">
-        <h2 className="text-2xl font-bold text-[#0f172a]">How DeskNear Works</h2>
+        <h2 className="text-2xl font-bold text-[#0f172a]">How WorkSpot Works</h2>
         <p className="text-gray-500 mt-2">Three simple steps to your perfect workspace</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -1264,7 +1264,7 @@ const Footer = () => (
         <div>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center"><I n="building" s={18} c="text-[#0f172a]" /></div>
-            <span className="text-xl font-bold">DeskNear</span>
+            <span className="text-xl font-bold">WorkSpot</span>
           </div>
           <p className="text-gray-400 text-sm">Find and book the perfect workspace near you. Hourly, daily, weekly, or monthly.</p>
         </div>
@@ -1297,7 +1297,7 @@ const Footer = () => (
         </div>
       </div>
       <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
-        © 2026 DeskNear. All rights reserved.
+        © 2026 WorkSpot. All rights reserved.
       </div>
     </div>
   </footer>
@@ -1325,7 +1325,7 @@ const App = () => {
     { id: "owner1", name: "Sarah Williams", email: "sarah@example.com", role: "owner" },
     { id: "owner2", name: "Mike Chen", email: "mike@example.com", role: "owner" },
     { id: "owner3", name: "Lisa Park", email: "lisa@example.com", role: "owner" },
-    { id: "admin1", name: "Admin User", email: "admin@desknear.ng", role: "superadmin" }
+    { id: "admin1", name: "Admin User", email: "admin@WorkSpot.ng", role: "superadmin" }
   ]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
