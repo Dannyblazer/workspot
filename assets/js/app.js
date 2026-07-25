@@ -896,7 +896,7 @@ const Hero = ({ onSearch }) => {
         <div className="max-w-2xl">
           <Badge color="amber">Now in 30+ cities across Nigeria</Badge>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mt-4 mb-6 leading-tight">Find your perfect<br /><span className="text-[#f59e0b]">workspace nearby</span></h1>
-          <p className="text-lg text-gray-300 mb-8 max-w-lg">Book desks, offices, and meeting rooms by the hour, day, week, or month. Thousands of workspaces across Nigeria, one simple platform.</p>
+          <p className="text-lg text-gray-300 mb-8 max-w-lg">Book desks, offices, and meeting rooms by the hour, day, week, or month. hundreds of workspaces across Nigeria, one simple platform.</p>
           <div className="bg-white rounded-2xl p-2 shadow-2xl max-w-xl">
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 relative">
