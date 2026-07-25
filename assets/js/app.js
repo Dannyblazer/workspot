@@ -981,7 +981,7 @@ const HowItWorks = () => (
         <p className="text-gray-500 mt-2">Three simple steps to your perfect workspace</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {[{ icon: "search", title: "Discover", desc: "Browse thousands of workspaces near you. Filter by price, amenities, and availability." },
+        {[{ icon: "search", title: "Discover", desc: "Browse hundreds of workspaces near you. Filter by price, amenities, and availability." },
           { icon: "calendar", title: "Book", desc: "Reserve by the hour, day, week, or month. Instant confirmation with flexible cancellation." },
           { icon: "building", title: "Work", desc: "Show up and start working. Access WiFi, amenities, and a productive environment." }].map((step, i) => (
           <div key={i} className="text-center">
