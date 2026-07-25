@@ -1082,11 +1082,155 @@ const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
   );
 };
 
+// ==================== WITHDRAWAL MODAL ====================
+const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
+  const [amount, setAmount] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [step, setStep] = useState(1);
+  const [withdrawals, setWithdrawals] = useState([
+    { id: 1, amount: 45000, date: "2026-07-20", status: "completed", bank: "GTBank", account: "****1234" },
+    { id: 2, amount: 28000, date: "2026-07-15", status: "completed", bank: "Access Bank", account: "****5678" },
+    { id: 3, amount: 15000, date: "2026-07-10", status: "pending", bank: "First Bank", account: "****9012" }
+  ]);
+
+  if (!open) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const numAmount = Number(amount);
+    if (numAmount > 0 && numAmount <= balance) {
+      onWithdraw(numAmount);
+      setWithdrawals([{ id: Date.now(), amount: numAmount, date: new Date().toISOString().split('T')[0], status: "pending", bank: bankName, account: "****" + accountNumber.slice(-4) }, ...withdrawals]);
+      setStep(3);
+    }
+  };
+
+  const BANKS = ["Access Bank", "Citibank Nigeria", "Ecobank Nigeria", "Fidelity Bank", "First Bank of Nigeria", "First City Monument Bank (FCMB)", "Globus Bank", "Guaranty Trust Bank (GTBank)", "Heritage Bank", "Keystone Bank", "Polaris Bank", "Providus Bank", "Stanbic IBTC Bank", "Standard Chartered Bank", "Sterling Bank", "SunTrust Bank", "Titan Trust Bank", "Union Bank of Nigeria", "United Bank for Africa (UBA)", "Unity Bank", "Wema Bank", "Zenith Bank"];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <I n="dollar" s={20} /> Withdraw Earnings
+          </h3>
+          <button onClick={() => { onClose(); setStep(1); setAmount(""); setBankName(""); setAccountNumber(""); setAccountName(""); }} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
+        </div>
+
+        <div className="p-6">
+          {step === 1 && (
+            <div className="space-y-5">
+              <div className="bg-emerald-50 rounded-xl p-5 text-center">
+                <div className="text-sm text-emerald-600 mb-1">Available Balance</div>
+                <div className="text-3xl font-bold text-emerald-700">₦{balance.toLocaleString()}</div>
+                <div className="text-xs text-emerald-500 mt-1">Minimum withdrawal: ₦5,000</div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Withdrawal Amount (₦)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-gray-400 text-lg">₦</span>
+                  <input 
+                    type="number" 
+                    value={amount} 
+                    onChange={e => setAmount(e.target.value)}
+                    className="w-full px-4 py-2.5 pl-8 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none text-lg font-semibold"
+                    placeholder="0"
+                    min="5000"
+                    max={balance}
+                  />
+                </div>
+                <div className="flex gap-2 mt-2">
+                  {[10000, 25000, 50000, 100000].map(amt => (
+                    <button key={amt} onClick={() => setAmount(amt)} className="px-3 py-1 text-xs bg-gray-100 rounded-full hover:bg-gray-200">₦{amt.toLocaleString()}</button>
+                  ))}
+                </div>
+              </div>
+
+              <Btn v="primary" s="lg" full onClick={() => setStep(2)} disabled={!amount || Number(amount) < 5000 || Number(amount) > balance}>
+                Continue <I n="arrowRight" s={16} />
+              </Btn>
+
+              {/* Withdrawal History */}
+              <div className="border-t border-gray-100 pt-4">
+                <h4 className="font-medium text-sm mb-3">Recent Withdrawals</h4>
+                <div className="space-y-2">
+                  {withdrawals.map(w => (
+                    <div key={w.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <div className="font-medium text-sm">₦{w.amount.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">{w.bank} • {w.account}</div>
+                      </div>
+                      <div className="text-right">
+                        <Badge color={w.status === "completed" ? "green" : "amber"}>{w.status}</Badge>
+                        <div className="text-xs text-gray-400">{w.date}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="flex justify-between text-sm"><span className="text-gray-600">Amount</span><span className="font-medium">₦{Number(amount).toLocaleString()}</span></div>
+                <div className="flex justify-between text-sm mt-1"><span className="text-gray-600">Fee</span><span className="font-medium">₦{Math.round(Number(amount) * 0.015).toLocaleString()} (1.5%)</span></div>
+                <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between"><span className="font-semibold">You'll receive</span><span className="font-bold">₦{Math.round(Number(amount) * 0.985).toLocaleString()}</span></div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name *</label>
+                <select value={bankName} onChange={e => setBankName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" required>
+                  <option value="">Select your bank</option>
+                  {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account Number *</label>
+                <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="10-digit account number" required maxLength={10} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account Name *</label>
+                <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="As it appears on your bank account" required />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Btn v="ghost" onClick={() => setStep(1)}>Back</Btn>
+                <Btn v="primary" full>Confirm Withdrawal</Btn>
+              </div>
+            </form>
+          )}
+
+          {step === 3 && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <I n="check" s={32} c="text-emerald-500" />
+              </div>
+              <h4 className="text-xl font-bold text-[#0f172a] mb-2">Withdrawal Initiated!</h4>
+              <p className="text-gray-500 text-sm mb-1">₦{Number(amount).toLocaleString()} will be sent to your account.</p>
+              <p className="text-gray-400 text-xs">Processing time: 1-2 business days</p>
+              <Btn v="primary" className="mt-6" onClick={() => { onClose(); setStep(1); setAmount(""); setBankName(""); setAccountNumber(""); setAccountName(""); }}>Done</Btn>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== OWNER DASHBOARD ====================
-const OwnerDashboard = ({ workspaces, bookings, onAddWorkspace }) => {
+const OwnerDashboard = ({ workspaces, bookings, onAddWorkspace, onWithdraw }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === "owner1");
   const myBookings = bookings.filter(b => myWorkspaces.some(w => w.id === b.workspaceId));
   const revenue = myBookings.reduce((a, b) => a + b.total, 0);
+  const withdrawn = 88000; // Mock: total withdrawn to date
+  const balance = revenue - withdrawn;
   const stats = [
     { label: "My Workspaces", value: myWorkspaces.length, icon: "building", color: "blue" },
     { label: "Total Bookings", value: myBookings.length, icon: "calendar", color: "green" },
@@ -1097,8 +1241,31 @@ const OwnerDashboard = ({ workspaces, bookings, onAddWorkspace }) => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-[#0f172a]">Owner Dashboard</h2>
-        <Btn v="primary" s="sm" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
+        <div className="flex gap-2">
+          <Btn v="accent" s="sm" onClick={onWithdraw}><I n="dollar" s={16} /> Withdraw</Btn>
+          <Btn v="primary" s="sm" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
+        </div>
       </div>
+
+      {/* Earnings Summary */}
+      <Card className="p-6 mb-8 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="text-center md:text-left">
+            <div className="text-sm text-emerald-600 mb-1">Total Revenue</div>
+            <div className="text-3xl font-bold text-emerald-800">₦{revenue.toLocaleString()}</div>
+          </div>
+          <div className="text-center md:text-left">
+            <div className="text-sm text-emerald-600 mb-1">Withdrawn</div>
+            <div className="text-3xl font-bold text-emerald-800">₦{withdrawn.toLocaleString()}</div>
+          </div>
+          <div className="text-center md:text-left">
+            <div className="text-sm text-emerald-600 mb-1">Available Balance</div>
+            <div className="text-3xl font-bold text-emerald-800">₦{balance.toLocaleString()}</div>
+            <button onClick={onWithdraw} className="text-sm text-emerald-600 hover:text-emerald-800 font-medium mt-1">Withdraw now →</button>
+          </div>
+        </div>
+      </Card>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map(s => (
           <Card key={s.label} className="p-5">
@@ -1318,6 +1485,8 @@ const App = () => {
   const [favorites, setFavorites] = useState([]);
   const [toast, setToast] = useState(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
+  const [ownerBalance, setOwnerBalance] = useState(125000); // Mock balance
 
   // Mock users data for superadmin
   const [users] = useState([
@@ -1361,6 +1530,11 @@ const App = () => {
     showToast("Availability updated!");
   };
 
+  const handleWithdraw = (amount) => {
+    setOwnerBalance(prev => prev - amount);
+    showToast(`Withdrawal of ₦${amount.toLocaleString()} initiated!`);
+  };
+
   const handleViewDetails = (ws) => {
     setSelectedWorkspace(ws);
     setView("workspace-details");
@@ -1379,7 +1553,7 @@ const App = () => {
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
       case "my-bookings": return <MyBookingsView bookings={bookings} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
-      case "owner-dashboard": return <OwnerDashboard workspaces={workspaces} bookings={bookings} onAddWorkspace={() => setAddWorkspaceOpen(true)} />;
+      case "owner-dashboard": return <OwnerDashboard workspaces={workspaces} bookings={bookings} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
       case "owner-workspaces": return <OwnerWorkspaces workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings workspaces={workspaces} bookings={bookings} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} reviews={REVIEWS_DATA} />;
@@ -1397,6 +1571,7 @@ const App = () => {
       <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
+      <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerBalance} onWithdraw={handleWithdraw} />
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#0f172a] text-white px-6 py-3 rounded-xl shadow-lg animate-bounce">
           {toast}
