@@ -1,20 +1,11 @@
 const { useState, useEffect, useMemo } = React;
 
-// ==================== DATA ====================
-const initWorkspaces = [
-  { id: 1, name: "The Hive Coworking", address: "123 Innovation Dr, Lagos, Nigeria", image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600", images: ["https://images.unsplash.com/photo-1497366216548-37526070297c?w=600", "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600", "https://images.unsplash.com/photo-1604328698692-f76ea9498e76?w=600", "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600"], rating: 4.8, reviews: 124, description: "Premium coworking in Victoria Island with fiber internet, standing desks, and rooftop terrace.", amenities: ["WiFi","Coffee","Meeting Rooms","Parking","24/7 Access","Printing"], pricing: { hourly: 2500, daily: 10000, weekly: 45000, monthly: 150000 }, ownerId: "owner1", availability: { hourly: { total: 40, booked: 12 }, daily: { total: 20, booked: 5 }, weekly: { total: 8, booked: 2 }, monthly: { total: 4, booked: 1 } }, featured: true },
-  { id: 2, name: "Pixel Studios", address: "456 Design Ave, Abuja, Nigeria", image: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600", images: ["https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600", "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600", "https://images.unsplash.com/photo-1604328698692-f76ea9498e76?w=600"], rating: 4.6, reviews: 89, description: "Creative workspace for designers and developers. Natural light and dual-monitor setups.", amenities: ["WiFi","Coffee","Meeting Rooms","Kitchen","Bike Storage"], pricing: { hourly: 2000, daily: 8000, weekly: 35000, monthly: 120000 }, ownerId: "owner2", availability: { hourly: { total: 30, booked: 8 }, daily: { total: 15, booked: 3 }, weekly: { total: 6, booked: 1 }, monthly: { total: 3, booked: 0 } }, featured: true },
-  { id: 3, name: "LaunchPad Hub", address: "789 Startup Blvd, Lagos, Nigeria", image: "https://images.unsplash.com/photo-1604328698692-f76ea9498e76?w=600", images: ["https://images.unsplash.com/photo-1604328698692-f76ea9498e76?w=600", "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600", "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600", "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=600"], rating: 4.9, reviews: 203, description: "Startup-focused with pitch rooms, investor lounge, and mentorship programs.", amenities: ["WiFi","Coffee","Meeting Rooms","Event Space","Mentorship","Mail Handling"], pricing: { hourly: 3500, daily: 14000, weekly: 60000, monthly: 200000 }, ownerId: "owner3", availability: { hourly: { total: 50, booked: 20 }, daily: { total: 25, booked: 10 }, weekly: { total: 10, booked: 4 }, monthly: { total: 5, booked: 2 } }, featured: false },
-  { id: 4, name: "Quiet Corner Office", address: "321 Focus St, Port Harcourt, Nigeria", image: "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600", images: ["https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600", "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600"], rating: 4.5, reviews: 67, description: "Minimalist, distraction-free workspace. Soundproof pods and focus rooms.", amenities: ["WiFi","Coffee","Phone Booths","Lockers","Shower"], pricing: { hourly: 1500, daily: 6000, weekly: 25000, monthly: 90000 }, ownerId: "owner4", availability: { hourly: { total: 20, booked: 5 }, daily: { total: 10, booked: 2 }, weekly: { total: 4, booked: 1 }, monthly: { total: 2, booked: 0 } }, featured: false },
-  { id: 5, name: "GreenSpace Offices", address: "654 Eco Lane, Ibadan, Nigeria", image: "https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=600", images: ["https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=600", "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600", "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600"], rating: 4.7, reviews: 95, description: "Sustainable workspace with living walls, solar power, and organic cafe.", amenities: ["WiFi","Organic Cafe","Garden","Yoga Room","EV Charging","Recycling"], pricing: { hourly: 2200, daily: 9000, weekly: 40000, monthly: 140000 }, ownerId: "owner5", availability: { hourly: { total: 35, booked: 15 }, daily: { total: 18, booked: 7 }, weekly: { total: 7, booked: 3 }, monthly: { total: 4, booked: 1 } }, featured: true },
-  { id: 6, name: "TechTower Suites", address: "987 Code Way, Lagos, Nigeria", image: "https://images.unsplash.com/photo-1497215842964-222b430dc094?w=600", images: ["https://images.unsplash.com/photo-1497215842964-222b430dc094?w=600", "https://images.unsplash.com/photo-1604328698692-f76ea9498e76?w=600", "https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=600"], rating: 4.4, reviews: 56, description: "Tech-focused with server rooms, dev tools, and 24/7 access.", amenities: ["WiFi","Coffee","Server Room","Gaming Lounge","24/7 Access","Snacks"], pricing: { hourly: 2000, daily: 8500, weekly: 37000, monthly: 130000 }, ownerId: "owner6", availability: { hourly: { total: 25, booked: 10 }, daily: { total: 12, booked: 4 }, weekly: { total: 5, booked: 2 }, monthly: { total: 3, booked: 1 } }, featured: false }
-];
+// ==================== CONSTANTS ====================
+// Ordered billing/availability tiers, used throughout the UI.
+const BILLING_TYPES = ["hourly", "daily", "weekly", "monthly"];
 
-const initBookings = [
-  { id: 101, workspaceId: 1, userId: "user1", type: "daily", quantity: 2, date: "2026-07-25", total: 20000, status: "confirmed", workspaceName: "The Hive Coworking", userName: "Alex Johnson" },
-  { id: 102, workspaceId: 2, userId: "user1", type: "weekly", quantity: 1, date: "2026-07-20", total: 35000, status: "confirmed", workspaceName: "Pixel Studios", userName: "Alex Johnson" },
-  { id: 103, workspaceId: 5, userId: "user1", type: "hourly", quantity: 4, date: "2026-07-23", total: 8800, status: "pending", workspaceName: "GreenSpace Offices", userName: "Alex Johnson" }
-];
+// Singular noun per tier (for "per day", "3 Days", etc.).
+const TIER_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
 
 const AMENITIES_LIST = [
   "WiFi", "Coffee", "Meeting Rooms", "Parking", "24/7 Access", "Printing",
@@ -23,36 +14,6 @@ const AMENITIES_LIST = [
   "EV Charging", "Recycling", "Server Room", "Gaming Lounge", "Snacks",
   "Air Conditioning", "Security", "CCTV", "Reception", "Lounge Area", "Whiteboard"
 ];
-
-const REVIEWS_DATA = {
-  1: [
-    { id: 1, user: "Chioma Okafor", rating: 5, date: "2026-07-15", text: "Amazing space! The internet is super fast and the rooftop view is incredible. Perfect for my team meetings." },
-    { id: 2, user: "Emeka Nwosu", rating: 4, date: "2026-07-10", text: "Great location in VI. Parking can be a bit tight during peak hours but overall excellent experience." },
-    { id: 3, user: "Amina Bello", rating: 5, date: "2026-06-28", text: "Love the standing desks and the coffee is top-notch. Will definitely book again!" },
-    { id: 4, user: "Tunde Bakare", rating: 4, date: "2026-06-20", text: "Professional environment with all the amenities you need. The meeting rooms are well equipped." }
-  ],
-  2: [
-    { id: 1, user: "Ngozi Eze", rating: 5, date: "2026-07-18", text: "Perfect for creatives! The natural lighting makes such a difference. Dual monitors are a game changer." },
-    { id: 2, user: "Femi Adeyemi", rating: 4, date: "2026-07-05", text: "Nice vibe in Abuja. Good community of designers and developers here." }
-  ],
-  3: [
-    { id: 1, user: "Sarah Ogunleye", rating: 5, date: "2026-07-20", text: "The pitch rooms are world-class. Helped me secure my first investor meeting!" },
-    { id: 2, user: "Kunle Ajayi", rating: 5, date: "2026-07-12", text: "Mentorship programs are invaluable. The investor lounge is a great place to network." },
-    { id: 3, user: "Ifeanyi Okonkwo", rating: 4, date: "2026-06-30", text: "Premium pricing but worth every naira for the connections you make here." }
-  ],
-  4: [
-    { id: 1, user: "Zainab Musa", rating: 4, date: "2026-07-14", text: "Exactly what I needed for focused work. The soundproof pods are fantastic." },
-    { id: 2, user: "Olumide Ojo", rating: 5, date: "2026-07-01", text: "Quiet, clean, and professional. The shower facility is a nice bonus for cyclists." }
-  ],
-  5: [
-    { id: 1, user: "Adaobi Nnamdi", rating: 5, date: "2026-07-19", text: "Love the eco-friendly approach! The garden is perfect for breaks and the organic cafe serves great food." },
-    { id: 2, user: "Chidi Obi", rating: 4, date: "2026-07-08", text: "Yoga room is a unique feature. Great for work-life balance. EV charging works well too." }
-  ],
-  6: [
-    { id: 1, user: "Bola Tinubu", rating: 4, date: "2026-07-16", text: "Tech paradise! Server room access is rare and super useful for my startup." },
-    { id: 2, user: "Yemi Alade", rating: 4, date: "2026-07-02", text: "Gaming lounge is fun for breaks. 24/7 access is essential for my schedule." }
-  ]
-};
 
 // ==================== ICONS ====================
 const I = ({ n, s = 20, c = "" }) => {
@@ -94,10 +55,11 @@ const I = ({ n, s = 20, c = "" }) => {
 
 // ==================== UI COMPONENTS ====================
 const Btn = ({ children, v = "primary", s = "md", onClick, className = "", disabled = false, full = false }) => {
-  const base = "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-200 cursor-pointer";
+  const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-button transition-all duration-200 cursor-pointer focus:outline-none focus:ring-4 focus:ring-brand/20";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
-  const variants = { primary: "bg-[#0f172a] text-white hover:bg-[#1e293b]", secondary: "bg-white text-[#0f172a] border border-gray-200 hover:bg-gray-50", ghost: "bg-transparent text-gray-600 hover:text-[#0f172a] hover:bg-gray-100", danger: "bg-red-50 text-red-600 hover:bg-red-100", success: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100", accent: "bg-[#f59e0b] text-white hover:bg-[#d97706]", purple: "bg-purple-50 text-purple-700 hover:bg-purple-100" };
-  return <button onClick={onClick} disabled={disabled} className={`${base} ${sizes[s]} ${variants[v]} ${full ? "w-full" : ""} ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}>{children}</button>;
+  const variants = { primary: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50", ghost: "bg-transparent text-gray-600 hover:text-brand hover:bg-brand-soft", danger: "bg-red-50 text-red-600 hover:bg-red-100", success: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100", accent: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", purple: "bg-brand-soft text-brand hover:bg-[#e4e1ff]" };
+  const brandStyle = (v === "primary" || v === "accent") ? { backgroundColor: "#6D5EF9", color: "#FFFFFF" } : undefined;
+  return <button onClick={onClick} disabled={disabled} style={brandStyle} className={`${base} ${sizes[s]} ${variants[v]} ${full ? "w-full" : ""} ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}>{children}</button>;
 };
 
 const Badge = ({ children, color = "gray" }) => {
@@ -105,7 +67,7 @@ const Badge = ({ children, color = "gray" }) => {
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>{children}</span>;
 };
 
-const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden ${hover ? "hover:shadow-md hover:border-gray-200 transition-all duration-200 cursor-pointer" : ""} ${className}`}>{children}</div>;
+const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card border border-gray-200/80 shadow-sm overflow-hidden ${hover ? "hover:shadow-soft hover:border-brand/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer" : ""} ${className}`}>{children}</div>;
 
 // ==================== AUTH MODAL ====================
 const AuthModal = ({ open, onClose, onLogin }) => {
@@ -114,28 +76,63 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Reset form when modal opens (bug fix: state should reset between sessions)
+  useEffect(() => {
+    if (open) {
+      setMode("login");
+      setRole("user");
+      setEmail("");
+      setPassword("");
+      setName("");
+      setError("");
+    }
+  }, [open]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = mode === "login"
+        ? await api.login(email, password)
+        : await api.register(email, password, name || email.split("@")[0], role);
+      api.setToken(res.token);
+      onLogin(res.user);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="flex border-b border-gray-100">
-          <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-medium ${mode === "login" ? "text-[#0f172a] border-b-2 border-[#0f172a]" : "text-gray-400"}`}>Sign In</button>
-          <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-medium ${mode === "signup" ? "text-[#0f172a] border-b-2 border-[#0f172a]" : "text-gray-400"}`}>Sign Up</button>
+          <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-semibold ${mode === "login" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign In</button>
+          <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
         </div>
         <div className="p-6">
-          <form onSubmit={e => { e.preventDefault(); onLogin({ email, name: name || email.split("@")[0], role }); onClose(); }} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>}
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="you@example.com" required /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="••••••••" required /></div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
-              <div className="grid grid-cols-3 gap-3">
-                <button type="button" onClick={() => setRole("user")} className={`p-3 rounded-lg border-2 text-center ${role === "user" ? "border-[#0f172a] bg-[#0f172a]/5" : "border-gray-200"}`}><I n="user" s={24} c={`mx-auto mb-1 ${role === "user" ? "text-[#0f172a]" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "user" ? "text-[#0f172a]" : "text-gray-600"}`}>Seeker</div></button>
-                <button type="button" onClick={() => setRole("owner")} className={`p-3 rounded-lg border-2 text-center ${role === "owner" ? "border-[#0f172a] bg-[#0f172a]/5" : "border-gray-200"}`}><I n="building" s={24} c={`mx-auto mb-1 ${role === "owner" ? "text-[#0f172a]" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "owner" ? "text-[#0f172a]" : "text-gray-600"}`}>Owner</div></button>
-                <button type="button" onClick={() => setRole("superadmin")} className={`p-3 rounded-lg border-2 text-center ${role === "superadmin" ? "border-[#0f172a] bg-[#0f172a]/5" : "border-gray-200"}`}><I n="shield" s={24} c={`mx-auto mb-1 ${role === "superadmin" ? "text-[#0f172a]" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "superadmin" ? "text-[#0f172a]" : "text-gray-600"}`}>Admin</div></button>
+            {mode === "signup" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setRole("user")} className={`p-3 rounded-control border-2 text-center ${role === "user" ? "border-brand bg-brand-soft" : "border-gray-200"}`}><I n="user" s={24} c={`mx-auto mb-1 ${role === "user" ? "text-brand" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "user" ? "text-brand" : "text-gray-600"}`}>Seeker</div></button>
+                  <button type="button" onClick={() => setRole("owner")} className={`p-3 rounded-control border-2 text-center ${role === "owner" ? "border-brand bg-brand-soft" : "border-gray-200"}`}><I n="building" s={24} c={`mx-auto mb-1 ${role === "owner" ? "text-brand" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "owner" ? "text-brand" : "text-gray-600"}`}>Owner</div></button>
+                </div>
               </div>
-            </div>
-            <Btn v="primary" s="lg" full>{mode === "login" ? "Sign In" : "Create Account"}</Btn>
+            )}
+            {error && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+            <Btn v="primary" s="lg" full disabled={loading}>{loading ? "Processing..." : (mode === "login" ? "Sign In" : "Create Account")}</Btn>
           </form>
           <div className="mt-4 text-center"><button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button></div>
         </div>
@@ -150,12 +147,25 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
   const [quantity, setQuantity] = useState(1);
   const [date, setDate] = useState("2026-07-25");
   const [step, setStep] = useState(1);
+
+  // Reset state when modal opens (bug fix: state should reset between workspaces)
+  useEffect(() => {
+    if (open && workspace) {
+      setBookingType("daily");
+      setQuantity(1);
+      setDate("2026-07-25");
+      setStep(1);
+    }
+  }, [open, workspace?.id]);
+
   if (!open || !workspace) return null;
+
   const typeLabels = { hourly: "Hours", daily: "Days", weekly: "Weeks", monthly: "Months" };
   const total = workspace.pricing[bookingType] * quantity;
   const fee = Math.round(total * 0.05);
   const grandTotal = total + fee;
   const avail = workspace.availability[bookingType].total - workspace.availability[bookingType].booked;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -171,10 +181,10 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Booking Type</label>
                 <div className="grid grid-cols-4 gap-2">
-                  {["hourly","daily","weekly","monthly"].map(t => (
-                    <button key={t} onClick={() => { setBookingType(t); setQuantity(1); }} className={`p-2 rounded-lg border-2 text-center ${bookingType === t ? "border-[#0f172a] bg-[#0f172a]/5" : "border-gray-200"}`}>
-                      <div className={`text-xs font-semibold capitalize ${bookingType === t ? "text-[#0f172a]" : "text-gray-500"}`}>{t}</div>
-                      <div className={`text-xs ${bookingType === t ? "text-[#0f172a]" : "text-gray-400"}`}>₦{workspace.pricing[t].toLocaleString()}</div>
+                  {BILLING_TYPES.map(t => (
+                    <button key={t} onClick={() => { setBookingType(t); setQuantity(1); }} className={`rounded-control border-2 p-2 text-center ${bookingType === t ? "border-brand bg-brand-soft" : "border-gray-200"}`}>
+                      <div className={`text-xs font-semibold capitalize ${bookingType === t ? "text-brand" : "text-gray-500"}`}>{t}</div>
+                      <div className={`text-xs ${bookingType === t ? "text-brand" : "text-gray-400"}`}>₦{workspace.pricing[t].toLocaleString()}/per {TIER_UNIT[t]}</div>
                     </button>
                   ))}
                 </div>
@@ -196,7 +206,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Service fee (5%)</span><span className="font-medium">₦{fee.toLocaleString()}</span></div>
                 <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between"><span className="font-semibold">Total</span><span className="font-bold text-lg">₦{grandTotal.toLocaleString()}</span></div>
               </div>
-              <Btn v="primary" s="lg" full onClick={() => setStep(2)}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
+              <Btn v="primary" s="lg" full onClick={() => setStep(2)} disabled={avail < 1}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
             </div>
           ) : (
             <div className="space-y-5">
@@ -216,7 +226,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">Expiry</label><input type="text" placeholder="MM/YY" className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">CVC</label><input type="text" placeholder="123" className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
               </div>
-              <Btn v="primary" s="lg" full onClick={() => { onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, date, total: grandTotal }); onClose(); }}><I n="creditCard" s={18} /> Pay ₦{grandTotal.toLocaleString()} & Book</Btn>
+              <Btn v="primary" s="lg" full onClick={() => { onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, date }); onClose(); }}><I n="creditCard" s={18} /> Pay ₦{grandTotal.toLocaleString()} & Book</Btn>
               <p className="text-xs text-center text-gray-400">Secured by Paystack. Your payment is encrypted.</p>
             </div>
           )}
@@ -228,8 +238,13 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
 // ==================== ADD WORKSPACE MODAL ====================
 const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
-  const [form, setForm] = useState({ name: "", address: "", description: "", website: "", pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } });
+  const emptyForm = { name: "", address: "", description: "", website: "", pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
+  const [form, setForm] = useState(emptyForm);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Reset form when modal opens (bug fix: stale form data between opens)
+  useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); } }, [open]);
+
   if (!open) return null;
 
   const toggleAmenity = (amenity) => {
@@ -247,7 +262,19 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           <h3 className="text-lg font-bold">Add New Workspace</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
         </div>
-        <form onSubmit={e => { e.preventDefault(); onAdd({ ...form, id: Date.now(), image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=600", images: ["https://images.unsplash.com/photo-1497366216548-37526070297c?w=600"], rating: 0, reviews: 0, pricing: { hourly: Number(form.pricing.hourly), daily: Number(form.pricing.daily), weekly: Number(form.pricing.weekly), monthly: Number(form.pricing.monthly) }, availability: { hourly: { total: Number(form.availability.hourly.total), booked: 0 }, daily: { total: Number(form.availability.daily.total), booked: 0 }, weekly: { total: Number(form.availability.weekly.total), booked: 0 }, monthly: { total: Number(form.availability.monthly.total), booked: 0 } }, ownerId: "owner1", featured: false }); onClose(); }} className="p-6 space-y-5">
+        <form onSubmit={e => {
+          e.preventDefault();
+          // owner_id is derived server-side from the JWT; ratings/reviews are derived on read.
+          onAdd({
+            name: form.name,
+            address: form.address,
+            description: form.description,
+            amenities: form.amenities,
+            pricing: Object.fromEntries(BILLING_TYPES.map(t => [t, Number(form.pricing[t]) || 0])),
+            availability: Object.fromEntries(BILLING_TYPES.map(t => [t, { total: Number(form.availability[t].total) || 0 }])),
+          });
+          onClose();
+        }} className="p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="e.g. The Hive Coworking" required /></div>
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Full address" required /></div>
@@ -256,13 +283,13 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Pricing (₦)</label>
             <div className="grid grid-cols-4 gap-3">
-              {["hourly","daily","weekly","monthly"].map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="w-full px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div></div>)}
+              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="w-full px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div></div>)}
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Available Slots</label>
             <div className="grid grid-cols-4 gap-3">
-              {["hourly","daily","weekly","monthly"].map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t} slots</label><input type="number" value={form.availability[t].total} onChange={e => setForm({...form, availability: {...form.availability, [t]: {...form.availability[t], total: e.target.value}}})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div>)}
+              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t} slots</label><input type="number" value={form.availability[t].total} onChange={e => setForm({...form, availability: {...form.availability, [t]: {...form.availability[t], total: e.target.value}}})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div>)}
             </div>
           </div>
           <div>
@@ -324,7 +351,7 @@ const EditAvailabilityModal = ({ workspace, open, onClose, onSave }) => {
         </div>
         <p className="text-sm text-gray-500 mb-4">{workspace.name}</p>
         <div className="space-y-4">
-          {["hourly","daily","weekly","monthly"].map(t => (
+          {BILLING_TYPES.map(t => (
             <div key={t} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div><div className="font-medium capitalize">{t} Slots</div><div className="text-xs text-gray-500">{availability[t]?.booked || 0} currently booked</div></div>
               <div className="flex items-center gap-2">
@@ -345,12 +372,24 @@ const EditAvailabilityModal = ({ workspace, open, onClose, onSave }) => {
 };
 
 // ==================== WORKSPACE DETAILS PAGE ====================
-const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, reviews }) => {
+const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => {
   const [activeImage, setActiveImage] = useState(0);
   const [activeTab, setActiveTab] = useState("overview");
+  const [workspaceReviews, setWorkspaceReviews] = useState([]);
+
+  // Fetch reviews from the API whenever the workspace changes.
+  useEffect(() => {
+    let cancelled = false;
+    if (workspace) {
+      api.getReviews(workspace.id)
+        .then(r => { if (!cancelled) setWorkspaceReviews(r); })
+        .catch(() => { if (!cancelled) setWorkspaceReviews([]); });
+    }
+    return () => { cancelled = true; };
+  }, [workspace?.id]);
+
   if (!workspace) return null;
 
-  const workspaceReviews = reviews[workspace.id] || [];
   const avgRating = workspaceReviews.length > 0 ? (workspaceReviews.reduce((a, b) => a + b.rating, 0) / workspaceReviews.length).toFixed(1) : workspace.rating;
 
   return (
@@ -438,7 +477,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, revie
                   <button 
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`pb-3 text-sm font-medium capitalize ${activeTab === tab ? "text-[#0f172a] border-b-2 border-[#0f172a]" : "text-gray-400 hover:text-gray-600"}`}
+                    className={`pb-3 text-sm font-semibold capitalize ${activeTab === tab ? "text-brand border-b-2 border-brand" : "text-gray-400 hover:text-gray-600"}`}
                   >
                     {tab}
                   </button>
@@ -467,7 +506,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, revie
                   <div>
                     <h3 className="font-bold text-lg mb-3">Availability</h3>
                     <div className="grid grid-cols-4 gap-3">
-                      {["hourly","daily","weekly","monthly"].map(t => {
+                      {BILLING_TYPES.map(t => {
                         const avail = workspace.availability[t].total - workspace.availability[t].booked;
                         return (
                           <div key={t} className="text-center p-3 bg-gray-50 rounded-lg">
@@ -521,7 +560,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, revie
               {activeTab === "pricing" && (
                 <div className="space-y-4">
                   <h3 className="font-bold text-lg mb-4">Pricing Plans</h3>
-                  {["hourly","daily","weekly","monthly"].map(t => (
+                  {BILLING_TYPES.map(t => (
                     <div key={t} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <div className="font-medium capitalize">{t} Rate</div>
@@ -529,7 +568,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, revie
                       </div>
                       <div className="text-right">
                         <div className="text-xl font-bold text-[#0f172a]">₦{workspace.pricing[t].toLocaleString()}</div>
-                        <div className="text-xs text-gray-400">per {t.slice(0, -2) || "hour"}</div>
+                        <div className="text-xs text-gray-400">per {TIER_UNIT[t]}</div>
                       </div>
                     </div>
                   ))}
@@ -577,16 +616,17 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, revie
 };
 
 // ==================== SUPERADMIN DASHBOARD ====================
-const SuperAdminDashboard = ({ workspaces, bookings, users, onBack }) => {
+const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const totalRevenue = bookings.reduce((a, b) => a + b.total, 0);
-  const totalWorkspaces = workspaces.length;
-  const totalBookings = bookings.length;
-  const totalUsers = users.length;
-  const pendingBookings = bookings.filter(b => b.status === "pending").length;
-  const confirmedBookings = bookings.filter(b => b.status === "confirmed").length;
+  // Platform totals come from the server; fall back to client-derived if absent.
+  const totalRevenue = stats?.totalRevenue ?? bookings.reduce((a, b) => a + b.total, 0);
+  const totalWorkspaces = stats?.totalWorkspaces ?? workspaces.length;
+  const totalBookings = stats?.totalBookings ?? bookings.length;
+  const totalUsers = stats?.totalUsers ?? users.length;
+  const pendingBookings = stats?.pendingBookings ?? bookings.filter(b => b.status === "pending").length;
+  const confirmedBookings = stats?.confirmedBookings ?? bookings.filter(b => b.status === "confirmed").length;
 
   const recentBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
 
@@ -639,7 +679,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, users, onBack }) => {
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium capitalize ${activeTab === tab ? "text-[#0f172a] border-b-2 border-[#0f172a]" : "text-gray-400 hover:text-gray-600"}`}
+              className={`pb-3 text-sm font-semibold capitalize ${activeTab === tab ? "text-brand border-b-2 border-brand" : "text-gray-400 hover:text-gray-600"}`}
             >
               {tab}
             </button>
@@ -797,43 +837,43 @@ const SuperAdminDashboard = ({ workspaces, bookings, users, onBack }) => {
 const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
+    <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView("landing")}>
-            <div className="w-8 h-8 bg-[#0f172a] rounded-lg flex items-center justify-center"><I n="building" s={18} c="text-white" /></div>
-            <span className="text-xl font-bold text-[#0f172a]">WorkSpot</span>
+            <img src="assets/workspot-logo.svg" alt="" className="h-9 w-9" />
+            <span className="text-xl font-extrabold tracking-tight text-gray-900">WorkSpot</span>
           </div>
           <div className="hidden md:flex items-center gap-6">
             {!user ? (
               <>
-                <button onClick={() => setView("landing")} className={`text-sm font-medium ${view === "landing" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Find Space</button>
-                <button onClick={() => setView("listings")} className={`text-sm font-medium ${view === "listings" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Listings</button>
-                <button onClick={() => setView("how-it-works")} className={`text-sm font-medium ${view === "how-it-works" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>How it Works</button>
+                <button onClick={() => setView("landing")} className={`text-sm font-semibold ${view === "landing" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Find Space</button>
+                <button onClick={() => setView("listings")} className={`text-sm font-semibold ${view === "listings" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Listings</button>
+                <button onClick={() => setView("how-it-works")} className={`text-sm font-semibold ${view === "how-it-works" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>How it Works</button>
               </>
             ) : user.role === "superadmin" ? (
               <>
-                <button onClick={() => setView("superadmin-dashboard")} className={`text-sm font-medium ${view === "superadmin-dashboard" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Admin Dashboard</button>
+                <button onClick={() => setView("superadmin-dashboard")} className={`text-sm font-semibold ${view === "superadmin-dashboard" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Admin Dashboard</button>
               </>
             ) : user.role === "owner" ? (
               <>
-                <button onClick={() => setView("owner-dashboard")} className={`text-sm font-medium ${view === "owner-dashboard" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Dashboard</button>
-                <button onClick={() => setView("owner-workspaces")} className={`text-sm font-medium ${view === "owner-workspaces" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>My Workspaces</button>
-                <button onClick={() => setView("owner-bookings")} className={`text-sm font-medium ${view === "owner-bookings" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Bookings</button>
+                <button onClick={() => setView("owner-dashboard")} className={`text-sm font-semibold ${view === "owner-dashboard" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Dashboard</button>
+                <button onClick={() => setView("owner-workspaces")} className={`text-sm font-semibold ${view === "owner-workspaces" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>My Workspaces</button>
+                <button onClick={() => setView("owner-bookings")} className={`text-sm font-semibold ${view === "owner-bookings" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Bookings</button>
               </>
             ) : (
               <>
-                <button onClick={() => setView("discover")} className={`text-sm font-medium ${view === "discover" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Discover</button>
-                <button onClick={() => setView("my-bookings")} className={`text-sm font-medium ${view === "my-bookings" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>My Bookings</button>
-                <button onClick={() => setView("favorites")} className={`text-sm font-medium ${view === "favorites" ? "text-[#0f172a]" : "text-gray-500 hover:text-gray-700"}`}>Favorites</button>
+                <button onClick={() => setView("discover")} className={`text-sm font-semibold ${view === "discover" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Discover</button>
+                <button onClick={() => setView("my-bookings")} className={`text-sm font-semibold ${view === "my-bookings" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>My Bookings</button>
+                <button onClick={() => setView("favorites")} className={`text-sm font-semibold ${view === "favorites" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Favorites</button>
               </>
             )}
           </div>
           <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full">
-                  <div className="w-6 h-6 bg-[#0f172a] rounded-full flex items-center justify-center"><span className="text-white text-xs font-bold">{user.name[0].toUpperCase()}</span></div>
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-brand-soft rounded-full">
+                  <div className="w-6 h-6 bg-brand rounded-full flex items-center justify-center"><span className="text-white text-xs font-bold">{user.name[0].toUpperCase()}</span></div>
                   <span className="text-sm font-medium text-gray-700">{user.name}</span>
                   <Badge color={user.role === "superadmin" ? "purple" : user.role === "owner" ? "amber" : "blue"}>{user.role === "superadmin" ? "Admin" : user.role === "owner" ? "Owner" : "User"}</Badge>
                 </div>
@@ -884,39 +924,30 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
 const Hero = ({ onSearch }) => {
   const [location, setLocation] = useState("");
   const [bookingType, setBookingType] = useState("daily");
+  const [people, setPeople] = useState("1");
   return (
-    <div className="relative bg-[#0f172a] text-white overflow-hidden">
-      <div className="absolute inset-0 opacity-10">
-        <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs><pattern id="g" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.5"/></pattern></defs>
-          <rect width="100" height="100" fill="url(#g)" />
-        </svg>
+    <section className="relative overflow-hidden border-b border-gray-100 bg-white">
+      <div className="absolute right-0 top-0 hidden h-full w-[54%] lg:block">
+        <img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=85" alt="Bright, modern workspace" className="h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
       </div>
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 pb-10 sm:pt-20 sm:pb-12">
         <div className="max-w-2xl">
-          <Badge color="amber">Now in 30+ cities across Nigeria</Badge>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mt-4 mb-6 leading-tight">Find your perfect<br /><span className="text-[#f59e0b]">workspace nearby</span></h1>
-          <p className="text-lg text-gray-300 mb-8 max-w-lg">Book desks, offices, and meeting rooms by the hour, day, week, or month. hundreds of workspaces across Nigeria, one simple platform.</p>
-          <div className="bg-white rounded-2xl p-2 shadow-2xl max-w-xl">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex-1 relative">
-                <I n="location" s={18} c="absolute left-3 top-3.5 text-gray-400" />
-                <input type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Where do you want to work?" className="w-full pl-10 pr-4 py-3 rounded-xl text-gray-900 placeholder-gray-400 outline-none" />
-              </div>
-              <select value={bookingType} onChange={e => setBookingType(e.target.value)} className="px-4 py-3 rounded-xl text-gray-900 bg-gray-50 outline-none border-none cursor-pointer">
-                <option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
-              </select>
-              <Btn v="accent" s="lg" onClick={() => onSearch(location, bookingType)}><I n="search" s={18} /> Search</Btn>
-            </div>
-          </div>
-          <div className="flex items-center gap-6 mt-8 text-sm text-gray-400">
-            <span className="flex items-center gap-1.5"><I n="check" s={14} c="text-emerald-400" /> Instant booking</span>
-            <span className="flex items-center gap-1.5"><I n="check" s={14} c="text-emerald-400" /> Flexible terms</span>
-            <span className="flex items-center gap-1.5"><I n="check" s={14} c="text-emerald-400" /> Secure payments</span>
+          <p className="mb-4 text-sm font-semibold text-brand">FLEXIBLE WORKSPACES, ON YOUR TERMS</p>
+          <h1 className="text-4xl sm:text-5xl lg:text-[58px] font-extrabold tracking-[-0.045em] leading-[1.04] text-gray-900">Find the perfect <span className="text-brand">workspace</span>, anywhere.</h1>
+          <p className="mt-5 max-w-xl text-lg leading-7 text-gray-500">Book inspiring spaces by the hour or day — from quiet corners to premium offices.</p>
+        </div>
+        <div className="relative mt-8 rounded-card border border-gray-200 bg-white p-2.5 shadow-soft">
+          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
+            <label className="flex min-w-0 items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="location" s={20} c="text-brand flex-shrink-0" /><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium text-gray-400">LOCATION</span><input aria-label="Workspace location" type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Lagos, Nigeria" className="w-full bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-500" /></span></label>
+            <label className="flex items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="calendar" s={20} c="text-brand flex-shrink-0" /><span><span className="block text-[11px] font-medium text-gray-400">BOOKING TYPE</span><select aria-label="Booking duration" value={bookingType} onChange={e => setBookingType(e.target.value)} className="-ml-1 bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></span></label>
+            <label className="flex items-center gap-3 rounded-control px-3 py-2.5"><I n="users" s={20} c="text-brand flex-shrink-0" /><span className="min-w-0"><span className="block text-[11px] font-medium text-gray-400">FOR</span><select aria-label="Number of people" value={people} onChange={e => setPeople(e.target.value)} className="-ml-1 max-w-full bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5+">5+ people</option></select></span></label>
+            <Btn v="primary" s="lg" className="min-h-[50px]" onClick={() => onSearch(location, bookingType, people)}><I n="search" s={18} /> Search spaces</Btn>
           </div>
         </div>
+        <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm text-gray-600"><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="trendUp" s={15} c="text-brand" /></span>Instant booking</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="shield" s={15} c="text-brand" /></span>Verified spaces</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="check" s={15} c="text-brand" /></span>Flexible terms</span></div>
       </div>
-    </div>
+    </section>
   );
 };
 
@@ -1011,24 +1042,28 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
     return w;
   }, [workspaces, filter, sort, search]);
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex flex-col sm:flex-row gap-4 mb-8">
-        <div className="relative flex-1">
-          <I n="search" s={18} c="absolute left-3 top-3 text-gray-400" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search workspaces..." className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+    <section className="bg-[#f8f9fc] py-8 sm:py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="mb-6 flex flex-wrap gap-2 overflow-x-auto pb-1">
+        {[['all', 'All spaces'], ['WiFi', 'Wi-Fi'], ['Meeting Rooms', 'Meeting rooms'], ['24/7 Access', 'Open 24/7'], ['Parking', 'Parking']].map(([value, label]) => <button key={value} onClick={() => setFilter(value)} style={filter === value ? { backgroundColor: '#6D5EF9', borderColor: '#6D5EF9' } : undefined} className={`whitespace-nowrap rounded-button border px-4 py-2 text-sm font-semibold transition ${filter === value ? 'text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-brand/30'}`}>{label}</button>)}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="h-fit rounded-card border border-gray-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
+          <div className="flex items-center justify-between"><h2 className="font-bold text-gray-900">Filters</h2><button onClick={() => { setFilter('all'); setSearch(''); setSort('rating'); }} className="text-xs font-semibold text-brand">Clear all</button></div>
+          <div className="mt-5 border-t border-gray-100 pt-5"><label className="text-xs font-bold uppercase tracking-wide text-gray-500">Search</label><div className="relative mt-2"><I n="search" s={16} c="absolute left-3 top-3 text-gray-400" /><input aria-label="Search workspaces" type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search spaces" className="w-full rounded-control border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-brand" /></div></div>
+          <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Amenities</p><div className="mt-3 space-y-2.5">{['WiFi', 'Coffee', 'Meeting Rooms', 'Parking', '24/7 Access'].map(amenity => <label key={amenity} className="flex cursor-pointer items-center gap-2 text-sm text-gray-600"><input type="radio" name="amenity" checked={filter === amenity} onChange={() => setFilter(amenity)} className="h-4 w-4 accent-[#6D5EF9]" />{amenity}</label>)}<label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600"><input type="radio" name="amenity" checked={filter === 'all'} onChange={() => setFilter('all')} className="h-4 w-4 accent-[#6D5EF9]" />Any amenity</label></div></div>
+          <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Booking</p><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="check" s={16} c="text-brand" />Instant confirmation</div><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="shield" s={16} c="text-brand" />Verified hosts</div></div>
+        </aside>
+        <div>
+          <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-2xl font-extrabold tracking-tight text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {filtered.map(w => <WorkspaceCard key={w.id} workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} />)}
+          </div>
         </div>
-        <select value={filter} onChange={e => setFilter(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none bg-white">
-          <option value="all">All Amenities</option><option value="WiFi">WiFi</option><option value="Coffee">Coffee</option><option value="Meeting Rooms">Meeting Rooms</option><option value="Parking">Parking</option><option value="24/7 Access">24/7 Access</option>
-        </select>
-        <select value={sort} onChange={e => setSort(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none bg-white">
-          <option value="rating">Top Rated</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option>
-        </select>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map(w => <WorkspaceCard key={w.id} workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} />)}
+      {filtered.length === 0 && <div className="py-16 text-center text-gray-400">No workspaces found matching your criteria.</div>}
       </div>
-      {filtered.length === 0 && <div className="text-center py-16 text-gray-400">No workspaces found matching your criteria.</div>}
-    </div>
+    </section>
   );
 };
 
@@ -1225,17 +1260,20 @@ const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
 };
 
 // ==================== OWNER DASHBOARD ====================
-const OwnerDashboard = ({ workspaces, bookings, onAddWorkspace, onWithdraw }) => {
-  const myWorkspaces = workspaces.filter(w => w.ownerId === "owner1");
-  const myBookings = bookings.filter(b => myWorkspaces.some(w => w.id === b.workspaceId));
-  const revenue = myBookings.reduce((a, b) => a + b.total, 0);
-  const withdrawn = 88000; // Mock: total withdrawn to date
-  const balance = revenue - withdrawn;
-  const stats = [
+const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, onWithdraw }) => {
+  const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
+  // bookings from /bookings are already owner-scoped by the JWT.
+  const myBookings = bookings;
+  // Money/occupancy come from the server (single source of truth).
+  const revenue = stats?.revenue ?? 0;
+  const withdrawn = stats?.withdrawn ?? 0;
+  const balance = stats?.balance ?? 0;
+  const occupancy = stats?.occupancy ?? "—";  // already includes % sign from server
+  const summaryStats = [
     { label: "My Workspaces", value: myWorkspaces.length, icon: "building", color: "blue" },
     { label: "Total Bookings", value: myBookings.length, icon: "calendar", color: "green" },
     { label: "Revenue", value: "₦" + revenue.toLocaleString(), icon: "dollar", color: "purple" },
-    { label: "Occupancy", value: "78%", icon: "trendUp", color: "amber" }
+    { label: "Occupancy", value: occupancy, icon: "trendUp", color: "amber" }
   ];
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -1267,7 +1305,7 @@ const OwnerDashboard = ({ workspaces, bookings, onAddWorkspace, onWithdraw }) =>
       </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map(s => (
+        {summaryStats.map(s => (
           <Card key={s.label} className="p-5">
             <div className="flex items-center justify-between mb-2">
               <I n={s.icon} s={20} c={`text-${s.color}-500`} />
@@ -1302,8 +1340,8 @@ const OwnerDashboard = ({ workspaces, bookings, onAddWorkspace, onWithdraw }) =>
 };
 
 // ==================== OWNER WORKSPACES ====================
-const OwnerWorkspaces = ({ workspaces, onAddWorkspace, onEditAvailability }) => {
-  const myWorkspaces = workspaces.filter(w => w.ownerId === "owner1");
+const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability }) => {
+  const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-center justify-between mb-6">
@@ -1326,7 +1364,7 @@ const OwnerWorkspaces = ({ workspaces, onAddWorkspace, onEditAvailability }) => 
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-3">
-                  {["hourly","daily","weekly","monthly"].map(t => {
+                  {BILLING_TYPES.map(t => {
                     const avail = w.availability[t].total - w.availability[t].booked;
                     return (
                       <div key={t} className="bg-gray-50 rounded-lg p-2 text-center">
@@ -1347,9 +1385,9 @@ const OwnerWorkspaces = ({ workspaces, onAddWorkspace, onEditAvailability }) => 
 };
 
 // ==================== OWNER BOOKINGS ====================
-const OwnerBookings = ({ workspaces, bookings }) => {
-  const myWorkspaces = workspaces.filter(w => w.ownerId === "owner1");
-  const myBookings = bookings.filter(b => myWorkspaces.some(w => w.id === b.workspaceId));
+const OwnerBookings = ({ bookings }) => {
+  // /bookings is already scoped to the owner's workspaces by the JWT.
+  const myBookings = bookings;
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <h2 className="text-2xl font-bold text-[#0f172a] mb-6">All Bookings</h2>
@@ -1425,12 +1463,12 @@ const MyBookingsView = ({ bookings }) => (
 
 // ==================== FOOTER ====================
 const Footer = () => (
-  <footer className="bg-[#0f172a] text-white py-12">
+  <footer className="bg-[#0f172a] text-white py-12" style={{ flexShrink: 0 }}>
     <div className="max-w-7xl mx-auto px-4 sm:px-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center"><I n="building" s={18} c="text-[#0f172a]" /></div>
+            <img src="assets/workspot-logo.svg" alt="" className="h-8 w-8" />
             <span className="text-xl font-bold">WorkSpot</span>
           </div>
           <p className="text-gray-400 text-sm">Find and book the perfect workspace near you. Hourly, daily, weekly, or monthly.</p>
@@ -1480,59 +1518,144 @@ const App = () => {
   const [addWorkspaceOpen, setAddWorkspaceOpen] = useState(false);
   const [editAvailWorkspace, setEditAvailWorkspace] = useState(null);
   const [editAvailOpen, setEditAvailOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState(initWorkspaces);
-  const [bookings, setBookings] = useState(initBookings);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [toast, setToast] = useState(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
-  const [ownerBalance, setOwnerBalance] = useState(125000); // Mock balance
-
-  // Mock users data for superadmin
-  const [users] = useState([
-    { id: "user1", name: "Alex Johnson", email: "alex@example.com", role: "user" },
-    { id: "owner1", name: "Sarah Williams", email: "sarah@example.com", role: "owner" },
-    { id: "owner2", name: "Mike Chen", email: "mike@example.com", role: "owner" },
-    { id: "owner3", name: "Lisa Park", email: "lisa@example.com", role: "owner" },
-    { id: "admin1", name: "Admin User", email: "admin@WorkSpot.ng", role: "superadmin" }
-  ]);
+  const [ownerStats, setOwnerStats] = useState(null);
+  const [adminData, setAdminData] = useState({ stats: null, users: [] });
+  const [loading, setLoading] = useState(true);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleLogin = (u) => { 
-    setUser(u); 
-    showToast(`Welcome, ${u.name}!`); 
+  // ---- data loaders ----
+  const loadWorkspaces = async () => {
+    try { setWorkspaces(await api.listWorkspaces()); }
+    catch (e) { showToast(e.message); }
+  };
+  const refreshBookings = async () => {
+    try { setBookings(await api.listBookings()); } catch (e) { /* not fatal */ }
+  };
+  const refreshOwnerStats = async () => {
+    try { setOwnerStats(await api.ownerStats()); } catch (e) { /* not fatal */ }
+  };
+
+  // Load the data a given user is entitled to (bookings, favorites, dashboards).
+  const loadUserData = async (u) => {
+    try {
+      const [bk, favs] = await Promise.all([api.listBookings(), api.listFavorites()]);
+      setBookings(bk);
+      setFavorites(favs);
+    } catch (e) { /* not fatal */ }
+    if (u.role === "owner") await refreshOwnerStats();
+    if (u.role === "superadmin") {
+      try {
+        const [stats, adminUsers] = await Promise.all([api.adminStats(), api.adminUsers()]);
+        setAdminData({ stats, users: adminUsers });
+      } catch (e) { /* not fatal */ }
+    }
+  };
+
+  // On mount: load public workspaces and restore a session if a token exists.
+  useEffect(() => {
+    (async () => {
+      await loadWorkspaces();
+      if (api.getToken()) {
+        try {
+          const u = await api.me();
+          setUser(u);
+          await loadUserData(u);
+        } catch (e) {
+          api.clearToken();
+        }
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Called by AuthModal after a successful login/register (token already set).
+  const handleLogin = async (u) => {
+    setUser(u);
+    showToast(`Welcome, ${u.name}!`);
     if (u.role === "superadmin") setView("superadmin-dashboard");
-    else if (u.role === "owner") setView("owner-dashboard"); 
-    else setView("discover"); 
+    else if (u.role === "owner") setView("owner-dashboard");
+    else setView("discover");
+    await loadUserData(u);
   };
 
-  const handleLogout = () => { setUser(null); setView("landing"); showToast("Signed out successfully"); };
-
-  const handleBook = (ws) => { setBookingWorkspace(ws); setBookingOpen(true); };
-
-  const handleConfirmBook = (b) => {
-    const newBooking = { ...b, id: Date.now(), userId: user?.id || "user1", userName: user?.name || "Guest", status: "confirmed" };
-    setBookings([newBooking, ...bookings]);
-    setWorkspaces(workspaces.map(w => w.id === b.workspaceId ? { ...w, availability: { ...w.availability, [b.type]: { ...w.availability[b.type], booked: w.availability[b.type].booked + b.quantity } } } : w));
-    showToast(`Booked ${b.workspaceName} for ${b.quantity} ${b.type}!`);
+  const handleLogout = () => {
+    api.clearToken();
+    setUser(null);
+    setBookings([]);
+    setFavorites([]);
+    setOwnerStats(null);
+    setAdminData({ stats: null, users: [] });
+    setView("landing");
+    showToast("Signed out successfully");
   };
 
-  const handleToggleFav = (id) => {
-    if (favorites.includes(id)) { setFavorites(favorites.filter(f => f !== id)); showToast("Removed from favorites"); }
-    else { setFavorites([...favorites, id]); showToast("Added to favorites"); }
+  const handleBook = (ws) => {
+    if (!user) { setAuthOpen(true); return; }
+    setBookingWorkspace(ws);
+    setBookingOpen(true);
   };
 
-  const handleAddWorkspace = (ws) => { setWorkspaces([ws, ...workspaces]); showToast("Workspace added successfully!"); };
-
-  const handleSaveAvailability = (id, avail) => {
-    setWorkspaces(workspaces.map(w => w.id === id ? { ...w, availability: avail } : w));
-    showToast("Availability updated!");
+  const handleConfirmBook = async (b) => {
+    try {
+      await api.createBooking({ workspaceId: b.workspaceId, type: b.type, quantity: b.quantity, date: b.date });
+      showToast(`Booked ${b.workspaceName} for ${b.quantity} ${b.type}!`);
+      // Refetch so availability and booking lists reflect server truth.
+      await Promise.all([loadWorkspaces(), refreshBookings()]);
+      if (user?.role === "owner") await refreshOwnerStats();
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
-  const handleWithdraw = (amount) => {
-    setOwnerBalance(prev => prev - amount);
-    showToast(`Withdrawal of ₦${amount.toLocaleString()} initiated!`);
+  const handleToggleFav = async (id) => {
+    if (!user) { setAuthOpen(true); return; }
+    const isFav = favorites.includes(id);
+    try {
+      if (isFav) { await api.removeFavorite(id); setFavorites(favorites.filter(f => f !== id)); showToast("Removed from favorites"); }
+      else { await api.addFavorite(id); setFavorites([...favorites, id]); showToast("Added to favorites"); }
+    } catch (e) {
+      showToast(e.message);
+    }
+  };
+
+  const handleAddWorkspace = async (ws) => {
+    try {
+      await api.createWorkspace(ws);
+      showToast("Workspace added successfully!");
+      await loadWorkspaces();
+      if (user?.role === "owner") await refreshOwnerStats();
+    } catch (e) {
+      showToast(e.message);
+    }
+  };
+
+  const handleSaveAvailability = async (id, avail) => {
+    try {
+      await api.updateAvailability(id, avail);
+      showToast("Availability updated!");
+      await loadWorkspaces();
+    } catch (e) {
+      showToast(e.message);
+    }
+  };
+
+  const handleWithdraw = async (payload) => {
+    try {
+      const res = await api.createWithdrawal(payload);
+      showToast(`Withdrawal of ₦${payload.amount.toLocaleString()} initiated!`);
+      await refreshOwnerStats();
+      return res;
+    } catch (e) {
+      showToast(e.message);
+      throw e;
+    }
   };
 
   const handleViewDetails = (ws) => {
@@ -1547,33 +1670,33 @@ const App = () => {
 
   const renderView = () => {
     switch (view) {
-      case "landing": return <><Hero onSearch={(loc, type) => { setView("listings"); }} /><FeaturedSection workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /></>;
+      case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /></>;
       case "listings": return <ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} />;
       case "how-it-works": return <HowItWorks />;
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
       case "my-bookings": return <MyBookingsView bookings={bookings} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
-      case "owner-dashboard": return <OwnerDashboard workspaces={workspaces} bookings={bookings} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
-      case "owner-workspaces": return <OwnerWorkspaces workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} />;
-      case "owner-bookings": return <OwnerBookings workspaces={workspaces} bookings={bookings} />;
-      case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} reviews={REVIEWS_DATA} />;
-      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={workspaces} bookings={bookings} users={users} onBack={() => setView("landing")} />;
+      case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={workspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
+      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} />;
+      case "owner-bookings": return <OwnerBookings bookings={bookings} />;
+      case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
+      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={workspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f8f9fc] text-gray-900" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Navbar user={user} onLogin={() => setAuthOpen(true)} onLogout={handleLogout} view={view} setView={setView} />
-      {renderView()}
+      <main style={{ flex: "1 0 auto" }}>{renderView()}</main>
       <Footer />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onLogin={handleLogin} />
       <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
-      <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerBalance} onWithdraw={handleWithdraw} />
+      <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerStats?.balance || 0} onWithdraw={handleWithdraw} />
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#0f172a] text-white px-6 py-3 rounded-xl shadow-lg animate-bounce">
+        <div className="fixed bottom-6 right-6 z-50 bg-brand text-white px-6 py-3 rounded-card shadow-lift">
           {toast}
         </div>
       )}
