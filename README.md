@@ -1,6 +1,6 @@
 # WorkSpot — Workspace Booking Platform
 
-> **Previously DeskNear** | A full-stack React application for discovering, booking, and managing shared workspaces across Nigeria.
+> A full-stack React application for discovering, booking, and managing shared workspaces across Nigeria.
 
 ---
 
