@@ -882,7 +882,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
             ) : (
               <div className="flex items-center gap-2">
                 <Btn v="ghost" s="sm" onClick={onLogin}>Sign In</Btn>
-                <Btn v="primary" s="sm" onClick={onLogin}>Get Started</Btn>
+                <Btn v="primary" s="sm" onClick={onLogin} className="rounded-md">Get Started</Btn>
               </div>
             )}
             <button className="md:hidden p-2 text-gray-500" onClick={() => setMobileOpen(!mobileOpen)}><I n={mobileOpen ? "close" : "menu"} s={20} /></button>
@@ -942,7 +942,7 @@ const Hero = ({ onSearch }) => {
             <label className="flex min-w-0 items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="location" s={20} c="text-brand flex-shrink-0" /><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium text-gray-400">LOCATION</span><input aria-label="Workspace location" type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Lagos, Nigeria" className="w-full bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-500" /></span></label>
             <label className="flex items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="calendar" s={20} c="text-brand flex-shrink-0" /><span><span className="block text-[11px] font-medium text-gray-400">BOOKING TYPE</span><select aria-label="Booking duration" value={bookingType} onChange={e => setBookingType(e.target.value)} className="-ml-1 bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></span></label>
             <label className="flex items-center gap-3 rounded-control px-3 py-2.5"><I n="users" s={20} c="text-brand flex-shrink-0" /><span className="min-w-0"><span className="block text-[11px] font-medium text-gray-400">FOR</span><select aria-label="Number of people" value={people} onChange={e => setPeople(e.target.value)} className="-ml-1 max-w-full bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5+">5+ people</option></select></span></label>
-            <Btn v="primary" s="lg" className="min-h-[50px]" onClick={() => onSearch(location, bookingType, people)}><I n="search" s={18} /> Search spaces</Btn>
+            <Btn v="primary" s="lg" className="min-h-[50px] rounded-md" onClick={() => onSearch(location, bookingType, people)}><I n="search" s={18} /> Search spaces</Btn>
           </div>
         </div>
         <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm text-gray-600"><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="trendUp" s={15} c="text-brand" /></span>Instant booking</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="shield" s={15} c="text-brand" /></span>Verified spaces</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="check" s={15} c="text-brand" /></span>Flexible terms</span></div>
@@ -1045,7 +1045,16 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
     <section className="bg-[#FAFAF8] py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
       <div className="mb-6 flex flex-wrap gap-2 overflow-x-auto pb-1">
-        {[['all', 'All spaces'], ['WiFi', 'Wi-Fi'], ['Meeting Rooms', 'Meeting rooms'], ['24/7 Access', 'Open 24/7'], ['Parking', 'Parking']].map(([value, label]) => <button key={value} onClick={() => setFilter(value)} style={filter === value ? { backgroundColor: '#171717', borderColor: '#171717' } : undefined} className={`whitespace-nowrap rounded-button border px-4 py-2 text-sm transition ${filter === value ? 'font-semibold text-white' : 'font-normal border-gray-200 bg-white text-gray-600 hover:border-brand/30'}`}>{label}</button>)}
+        {[['all', 'All spaces'], ['WiFi', 'Wi-Fi'], ['Meeting Rooms', 'Meeting rooms'], ['24/7 Access', 'Open 24/7'], ['Parking', 'Parking']].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setFilter(value)}
+            style={filter === value ? { backgroundColor: '#171717', borderColor: '#171717' } : undefined}
+            className={`whitespace-nowrap rounded-md border px-4 py-2 text-sm transition ${filter === value ? 'font-semibold text-white' : 'font-normal border-gray-200 bg-white text-gray-600 hover:border-brand/30'}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="h-fit rounded-card border border-gray-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
