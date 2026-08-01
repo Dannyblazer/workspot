@@ -282,13 +282,13 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Pricing (₦)</label>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="w-full px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div></div>)}
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Available Slots</label>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t} slots</label><input type="number" value={form.availability[t].total} onChange={e => setForm({...form, availability: {...form.availability, [t]: {...form.availability[t], total: e.target.value}}})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div>)}
             </div>
           </div>
@@ -396,7 +396,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
     <div className="min-h-screen bg-gray-50">
       {/* Image Gallery */}
       <div className="relative bg-gray-900">
-        <div className="h-[400px] md:h-[500px] relative overflow-hidden">
+        <div className="h-[280px] sm:h-[400px] md:h-[500px] relative overflow-hidden">
           <img 
             src={workspace.images[activeImage] || workspace.image} 
             alt={workspace.name} 
@@ -458,8 +458,8 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl p-6 mb-6">
-              <div className="flex items-start justify-between mb-4">
+            <div className="bg-white rounded-card p-4 sm:p-6 mb-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
                 <div>
                   <h1 className="text-3xl font-bold text-[#0f172a]">{workspace.name}</h1>
                   <p className="text-gray-500 mt-1 flex items-center gap-1"><I n="location" s={16} /> {workspace.address}</p>
@@ -505,7 +505,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
 
                   <div>
                     <h3 className="font-bold text-lg mb-3">Availability</h3>
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {BILLING_TYPES.map(t => {
                         const avail = workspace.availability[t].total - workspace.availability[t].booked;
                         return (
@@ -579,7 +579,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
 
           {/* Right Column - Booking Card */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl p-6 sticky top-24">
+            <div className="bg-white rounded-card p-4 sm:p-6 lg:sticky lg:top-24">
               <div className="text-center mb-6">
                 <div className="text-3xl font-bold text-[#0f172a]">₦{workspace.pricing.hourly.toLocaleString()}</div>
                 <div className="text-gray-400 text-sm">per hour</div>
@@ -602,7 +602,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
 
               <Btn v="primary" s="lg" full onClick={() => onBook(workspace)}>Book Now</Btn>
 
-              <div className="mt-4 flex items-center justify-center gap-4 text-xs text-gray-400">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-gray-400">
                 <span className="flex items-center gap-1"><I n="check" s={12} c="text-emerald-400" /> Instant</span>
                 <span className="flex items-center gap-1"><I n="check" s={12} c="text-emerald-400" /> Flexible</span>
                 <span className="flex items-center gap-1"><I n="check" s={12} c="text-emerald-400" /> Secure</span>
@@ -1093,7 +1093,7 @@ const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
       <div className="space-y-3">
         {bookings.map(b => (
           <Card key={b.id} className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><I n="briefcase" s={20} c="text-gray-400" /></div>
                 <div>
@@ -1101,7 +1101,7 @@ const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
                   <div className="text-sm text-gray-500">{b.quantity} {b.type} • {b.date}</div>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                 <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
               </div>
@@ -1277,9 +1277,9 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
   ];
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-2xl font-bold text-[#0f172a]">Owner Dashboard</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Btn v="accent" s="sm" onClick={onWithdraw}><I n="dollar" s={16} /> Withdraw</Btn>
           <Btn v="primary" s="sm" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
         </div>
@@ -1344,17 +1344,17 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-2xl font-bold text-[#0f172a]">My Workspaces</h2>
         <Btn v="primary" s="sm" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
       </div>
       <div className="space-y-4">
         {myWorkspaces.map(w => (
           <Card key={w.id} className="p-5">
-            <div className="flex items-start gap-4">
-              <img src={w.image} alt={w.name} className="w-24 h-24 rounded-lg object-cover flex-shrink-0" />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <img src={w.image} alt={w.name} className="h-40 w-full rounded-control object-cover sm:h-24 sm:w-24 sm:flex-shrink-0" />
               <div className="flex-1">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="font-bold text-gray-900">{w.name}</h3>
                     <p className="text-sm text-gray-500 mt-0.5">{w.address}</p>
@@ -1363,7 +1363,7 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
                     <Btn v="secondary" s="sm" onClick={() => onEditAvailability(w)}><I n="edit" s={14} /> Availability</Btn>
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2 mt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                   {BILLING_TYPES.map(t => {
                     const avail = w.availability[t].total - w.availability[t].booked;
                     return (
@@ -1394,7 +1394,7 @@ const OwnerBookings = ({ bookings }) => {
       <div className="space-y-3">
         {myBookings.length > 0 ? myBookings.map(b => (
           <Card key={b.id} className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><I n="user" s={20} c="text-gray-400" /></div>
                 <div>
@@ -1402,7 +1402,7 @@ const OwnerBookings = ({ bookings }) => {
                   <div className="text-sm text-gray-500">{b.workspaceName} • {b.quantity} {b.type} • {b.date}</div>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                 <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
               </div>
@@ -1442,7 +1442,7 @@ const MyBookingsView = ({ bookings }) => (
     <div className="space-y-3">
       {bookings.map(b => (
         <Card key={b.id} className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><I n="briefcase" s={20} c="text-gray-400" /></div>
               <div>
@@ -1450,7 +1450,7 @@ const MyBookingsView = ({ bookings }) => (
                 <div className="text-sm text-gray-500">{b.quantity} {b.type} • {b.date}</div>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
               <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
             </div>
