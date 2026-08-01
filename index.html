@@ -9,7 +9,7 @@
     tailwind.config = {
       theme: {
         extend: {
-          colors: { brand: { DEFAULT: '#6D5EF9', hover: '#5B4EF2', soft: '#F0EEFF' } },
+          colors: { brand: { DEFAULT: '#171717', hover: '#000000', soft: '#F1F1EF' } },
           borderRadius: { 'card': '20px', 'control': '14px', 'button': '12px' },
           boxShadow: { soft: '0 18px 45px rgba(44, 35, 103, 0.10)', lift: '0 20px 50px rgba(44, 35, 103, 0.16)' }
         }
@@ -25,18 +25,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', sans-serif; background: #F8FAFC; overflow-x: hidden; }
+    body { font-family: 'Inter', sans-serif; background: #FAFAF8; overflow-x: hidden; }
     .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(109, 94, 249, .32); outline-offset: 2px; }
-    ::selection { background: #DCD8FF; color: #111827; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(23, 23, 23, .28); outline-offset: 2px; }
+    ::selection { background: #E8D8CA; color: #171717; }
     /* Fallbacks for design tokens used by the external JSX bundle. */
-    .bg-brand { background-color: #6D5EF9 !important; }
-    .bg-brand-soft { background-color: #F0EEFF !important; }
-    .text-brand { color: #6D5EF9 !important; }
-    .border-brand { border-color: #6D5EF9 !important; }
-    .hover\:bg-brand-hover:hover { background-color: #5B4EF2 !important; }
-    .hover\:text-brand:hover { color: #6D5EF9 !important; }
-    .focus\:border-brand:focus { border-color: #6D5EF9 !important; }
+    .bg-brand { background-color: #171717 !important; }
+    .bg-brand-soft { background-color: #F1F1EF !important; }
+    .text-brand { color: #171717 !important; }
+    .border-brand { border-color: #171717 !important; }
+    .hover\:bg-brand-hover:hover { background-color: #000000 !important; }
+    .hover\:text-brand:hover { color: #171717 !important; }
+    .focus\:border-brand:focus { border-color: #171717 !important; }
   </style>
 </head>
 <body class="bg-white text-gray-900 antialiased">

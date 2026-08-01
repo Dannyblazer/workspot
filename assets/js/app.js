@@ -57,13 +57,13 @@ const I = ({ n, s = 20, c = "" }) => {
 const Btn = ({ children, v = "primary", s = "md", onClick, className = "", disabled = false, full = false }) => {
   const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-button transition-all duration-200 cursor-pointer focus:outline-none focus:ring-4 focus:ring-brand/20";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
-  const variants = { primary: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50", ghost: "bg-transparent text-gray-600 hover:text-brand hover:bg-brand-soft", danger: "bg-red-50 text-red-600 hover:bg-red-100", success: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100", accent: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", purple: "bg-brand-soft text-brand hover:bg-[#e4e1ff]" };
-  const brandStyle = (v === "primary" || v === "accent") ? { backgroundColor: "#6D5EF9", color: "#FFFFFF" } : undefined;
+  const variants = { primary: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50", ghost: "bg-transparent text-gray-600 hover:text-brand hover:bg-brand-soft", danger: "bg-red-50 text-red-600 hover:bg-red-100", success: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100", accent: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", purple: "bg-brand-soft text-brand hover:bg-[#E6E6E2]" };
+  const brandStyle = (v === "primary" || v === "accent") ? { backgroundColor: "#171717", color: "#FFFFFF" } : undefined;
   return <button onClick={onClick} disabled={disabled} style={brandStyle} className={`${base} ${sizes[s]} ${variants[v]} ${full ? "w-full" : ""} ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}>{children}</button>;
 };
 
 const Badge = ({ children, color = "gray" }) => {
-  const colors = { gray: "bg-gray-100 text-gray-700", green: "bg-emerald-50 text-emerald-700", blue: "bg-blue-50 text-blue-700", amber: "bg-amber-50 text-amber-700", red: "bg-red-50 text-red-700", purple: "bg-purple-50 text-purple-700" };
+  const colors = { gray: "bg-gray-100 text-gray-700", green: "bg-emerald-50 text-emerald-700", blue: "bg-gray-100 text-gray-700", amber: "bg-amber-50 text-amber-700", red: "bg-red-50 text-red-700", purple: "bg-brand-soft text-brand" };
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>{children}</span>;
 };
 
@@ -658,8 +658,8 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {[
             { label: "Total Revenue", value: `₦${totalRevenue.toLocaleString()}`, icon: "dollar", color: "green" },
-            { label: "Workspaces", value: totalWorkspaces, icon: "building", color: "blue" },
-            { label: "Total Bookings", value: totalBookings, icon: "calendar", color: "purple" },
+            { label: "Workspaces", value: totalWorkspaces, icon: "building", color: "gray" },
+            { label: "Total Bookings", value: totalBookings, icon: "calendar", color: "gray" },
             { label: "Users", value: totalUsers, icon: "users", color: "amber" },
             { label: "Pending", value: pendingBookings, icon: "clock", color: "red" }
           ].map(s => (
@@ -934,7 +934,7 @@ const Hero = ({ onSearch }) => {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 pb-10 sm:pt-20 sm:pb-12">
         <div className="max-w-2xl">
           <p className="mb-4 text-sm font-semibold text-brand">FLEXIBLE WORKSPACES, ON YOUR TERMS</p>
-          <h1 className="text-4xl sm:text-5xl lg:text-[58px] font-extrabold tracking-[-0.045em] leading-[1.04] text-gray-900">Find the perfect <span className="text-brand">workspace</span>, anywhere.</h1>
+          <h1 className="text-4xl sm:text-5xl lg:text-[58px] font-extrabold tracking-[-0.045em] leading-[1.04] text-gray-900">Find the perfect <span className="text-[#B9683C]">workspace</span>, anywhere.</h1>
           <p className="mt-5 max-w-xl text-lg leading-7 text-gray-500">Book inspiring spaces by the hour or day — from quiet corners to premium offices.</p>
         </div>
         <div className="relative mt-8 rounded-card border border-gray-200 bg-white p-2.5 shadow-soft">
@@ -1042,16 +1042,16 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
     return w;
   }, [workspaces, filter, sort, search]);
   return (
-    <section className="bg-[#f8f9fc] py-8 sm:py-12">
+    <section className="bg-[#FAFAF8] py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
       <div className="mb-6 flex flex-wrap gap-2 overflow-x-auto pb-1">
-        {[['all', 'All spaces'], ['WiFi', 'Wi-Fi'], ['Meeting Rooms', 'Meeting rooms'], ['24/7 Access', 'Open 24/7'], ['Parking', 'Parking']].map(([value, label]) => <button key={value} onClick={() => setFilter(value)} style={filter === value ? { backgroundColor: '#6D5EF9', borderColor: '#6D5EF9' } : undefined} className={`whitespace-nowrap rounded-button border px-4 py-2 text-sm font-semibold transition ${filter === value ? 'text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-brand/30'}`}>{label}</button>)}
+        {[['all', 'All spaces'], ['WiFi', 'Wi-Fi'], ['Meeting Rooms', 'Meeting rooms'], ['24/7 Access', 'Open 24/7'], ['Parking', 'Parking']].map(([value, label]) => <button key={value} onClick={() => setFilter(value)} style={filter === value ? { backgroundColor: '#171717', borderColor: '#171717' } : undefined} className={`whitespace-nowrap rounded-button border px-4 py-2 text-sm transition ${filter === value ? 'font-semibold text-white' : 'font-normal border-gray-200 bg-white text-gray-600 hover:border-brand/30'}`}>{label}</button>)}
       </div>
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="h-fit rounded-card border border-gray-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
           <div className="flex items-center justify-between"><h2 className="font-bold text-gray-900">Filters</h2><button onClick={() => { setFilter('all'); setSearch(''); setSort('rating'); }} className="text-xs font-semibold text-brand">Clear all</button></div>
           <div className="mt-5 border-t border-gray-100 pt-5"><label className="text-xs font-bold uppercase tracking-wide text-gray-500">Search</label><div className="relative mt-2"><I n="search" s={16} c="absolute left-3 top-3 text-gray-400" /><input aria-label="Search workspaces" type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search spaces" className="w-full rounded-control border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-brand" /></div></div>
-          <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Amenities</p><div className="mt-3 space-y-2.5">{['WiFi', 'Coffee', 'Meeting Rooms', 'Parking', '24/7 Access'].map(amenity => <label key={amenity} className="flex cursor-pointer items-center gap-2 text-sm text-gray-600"><input type="radio" name="amenity" checked={filter === amenity} onChange={() => setFilter(amenity)} className="h-4 w-4 accent-[#6D5EF9]" />{amenity}</label>)}<label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600"><input type="radio" name="amenity" checked={filter === 'all'} onChange={() => setFilter('all')} className="h-4 w-4 accent-[#6D5EF9]" />Any amenity</label></div></div>
+          <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Amenities</p><div className="mt-3 space-y-2.5">{['WiFi', 'Coffee', 'Meeting Rooms', 'Parking', '24/7 Access'].map(amenity => <label key={amenity} className="flex cursor-pointer items-center gap-2 text-sm text-gray-600"><input type="radio" name="amenity" checked={filter === amenity} onChange={() => setFilter(amenity)} className="h-4 w-4 accent-[#171717]" />{amenity}</label>)}<label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600"><input type="radio" name="amenity" checked={filter === 'all'} onChange={() => setFilter('all')} className="h-4 w-4 accent-[#171717]" />Any amenity</label></div></div>
           <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Booking</p><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="check" s={16} c="text-brand" />Instant confirmation</div><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="shield" s={16} c="text-brand" />Verified hosts</div></div>
         </aside>
         <div>
@@ -1070,10 +1070,10 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
 // ==================== USER DASHBOARD ====================
 const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
   const stats = [
-    { label: "Total Bookings", value: bookings.length, icon: "calendar", color: "blue" },
+    { label: "Total Bookings", value: bookings.length, icon: "calendar", color: "gray" },
     { label: "Active Now", value: bookings.filter(b => b.status === "confirmed").length, icon: "check", color: "green" },
     { label: "Pending", value: bookings.filter(b => b.status === "pending").length, icon: "clock", color: "amber" },
-    { label: "Total Spent", value: "₦" + bookings.reduce((a, b) => a + b.total, 0).toLocaleString(), icon: "dollar", color: "purple" }
+    { label: "Total Spent", value: "₦" + bookings.reduce((a, b) => a + b.total, 0).toLocaleString(), icon: "dollar", color: "amber" }
   ];
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -1270,9 +1270,9 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
   const balance = stats?.balance ?? 0;
   const occupancy = stats?.occupancy ?? "—";  // already includes % sign from server
   const summaryStats = [
-    { label: "My Workspaces", value: myWorkspaces.length, icon: "building", color: "blue" },
+    { label: "My Workspaces", value: myWorkspaces.length, icon: "building", color: "gray" },
     { label: "Total Bookings", value: myBookings.length, icon: "calendar", color: "green" },
-    { label: "Revenue", value: "₦" + revenue.toLocaleString(), icon: "dollar", color: "purple" },
+    { label: "Revenue", value: "₦" + revenue.toLocaleString(), icon: "dollar", color: "amber" },
     { label: "Occupancy", value: occupancy, icon: "trendUp", color: "amber" }
   ];
   return (
@@ -1686,7 +1686,7 @@ const App = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fc] text-gray-900" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="min-h-screen bg-[#FAFAF8] text-gray-900" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Navbar user={user} onLogin={() => setAuthOpen(true)} onLogout={handleLogout} view={view} setView={setView} />
       <main style={{ flex: "1 0 auto" }}>{renderView()}</main>
       <Footer />
