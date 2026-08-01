@@ -1,4 +1,4 @@
-// api.js — WorkSpot API client (plain JS, loaded before Babel app.js)
+// api.js — WorkSpot API client (plain JS, loaded before Babel app.js) -- I will change later
 (function(window) {
   'use strict';
 
