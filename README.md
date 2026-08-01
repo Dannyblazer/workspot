@@ -23,11 +23,14 @@
 
 WorkSpot is a modern workspace booking platform built for the Nigerian market. It connects workspace seekers with workspace owners, enabling flexible bookings by the hour, day, week, or month. The platform supports three user roles — **Users**, **Owners**, and **SuperAdmins** — each with tailored dashboards and functionality.
 
+It is a full-stack app: a zero-build React frontend backed by a **Go (Gin) + PostgreSQL** API with JWT authentication. Money and availability are computed and enforced **server-side** — bookings are transactional (no overbooking), fees are calculated by the API, and owner balances are derived from real data.
+
 ### Key Highlights
 - 🇳🇬 **NGN Currency** — All pricing in Nigerian Naira (₦)
 - 📍 **Nigerian Locations** — Workspaces in Lagos, Abuja, Port Harcourt, Ibadan
-- ⚡ **Instant Booking** — Real-time availability with immediate confirmation
-- 🔐 **Secure Payments** — Paystack-integrated payment flow
+- ⚡ **Transactional Booking** — `SELECT ... FOR UPDATE` guards prevent overbooking and last-slot races
+- 🔐 **JWT Auth** — Role-based access (user/owner/superadmin); token stored in `localStorage`
+- 💰 **Server-computed money** — 5% booking fee, 1.5% withdrawal fee, derived owner balances
 - 📊 **Admin Analytics** — Revenue tracking, occupancy rates, user management
 
 ---
@@ -68,10 +71,13 @@ WorkSpot is a modern workspace booking platform built for the Nigerian market. I
 |-------|------------|
 | **Frontend** | React 18 (CDN), JSX via Babel Standalone |
 | **Styling** | Tailwind CSS (CDN) |
-| **Icons** | Custom SVG icon components |
+| **API client** | `assets/js/api.js` — dependency-free `fetch` wrapper on `window.api` |
 | **State Management** | React Hooks (`useState`, `useEffect`, `useMemo`) |
-| **Routing** | Client-side view switching |
-| **Build Tool** | None — zero-build setup with CDN dependencies |
+| **Frontend build** | None — zero-build setup with CDN dependencies |
+| **Backend** | Go 1.26 + [Gin](https://github.com/gin-gonic/gin) |
+| **Database** | PostgreSQL 18 (via [pgx/v5](https://github.com/jackc/pgx)) |
+| **Auth** | JWT ([golang-jwt/jwt/v5](https://github.com/golang-jwt/jwt)) + bcrypt password hashing |
+| **Migrations/Seed** | Embedded `.sql` files run at startup (`embed.FS`), tracked in `schema_migrations` |
 
 ---
 
@@ -79,12 +85,22 @@ WorkSpot is a modern workspace booking platform built for the Nigerian market. I
 
 ```
 workspot/
-├── index.html              # Entry point — loads React, Tailwind, Babel, and app.js
-├── app.js                  # Main application (all React components)
+├── index.html                  # Entry point — loads React, Tailwind, Babel, api.js, app.js
 ├── assets/
 │   └── js/
-│       └── app.js          # Alternative path (legacy support)
-└── README.md               # This file
+│       ├── api.js              # API client (window.api) — loaded before app.js
+│       └── app.js              # Main application (all React components)
+├── backend/
+│   ├── main.go                 # Config load, DB connect, migrate+seed, start Gin
+│   ├── .env.example            # DB_URL, JWT_SECRET, PORT, CORS_ORIGIN + demo creds
+│   └── internal/
+│       ├── config/             # env parsing
+│       ├── database/           # pgxpool connect, migration runner, migrations/ + seed/ SQL
+│       ├── models/             # structs + JSON tags matching the frontend shapes
+│       ├── auth/               # bcrypt, JWT sign/parse, RequireAuth/RequireRole middleware
+│       ├── handlers/           # auth, workspaces, bookings, favorites, owner, withdrawals, admin
+│       └── server/             # route table + CORS
+└── README.md                   # This file
 ```
 
 ### Component Architecture
@@ -115,40 +131,51 @@ App (root)
 
 ## Getting Started
 
+The app has two parts: the **Go/Postgres backend** (API on `:8080`) and the **static frontend** (served on `:3000`). Start the backend first.
+
 ### Prerequisites
-- A modern web browser (Chrome, Firefox, Safari, Edge)
-- An internet connection (for CDN dependencies)
+- **Go 1.26+**
+- **PostgreSQL 18** running locally (or any reachable Postgres)
+- A modern web browser + internet connection (frontend CDN dependencies)
 
-### Installation
+### 1. Backend
 
-1. **Clone or download** the project files:
-   ```bash
-   git clone https://github.com/your-org/workspot.git
-   cd workspot
-   ```
+```bash
+cd backend
+cp .env.example .env          # then edit DB_URL / JWT_SECRET as needed
+go run .
+```
 
-2. **Serve the files** using any static file server:
-   ```bash
-   # Python 3
-   python -m http.server 3000
+On first boot the server connects to Postgres, runs the embedded migrations, and seeds demo data — all idempotent (tracked in `schema_migrations`). You should see `WorkSpot API listening on :8080`.
 
-   # Node.js (npx)
-   npx serve .
+`.env` keys:
 
-   # PHP
-   php -S localhost:3000
-   ```
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `PORT` | `8080` | API listen port |
+| `DB_URL` | `postgres://…/workspot_db?sslmode=disable` | Postgres connection string |
+| `JWT_SECRET` | `dev-secret-change-me` | **Change in any real deployment** |
+| `CORS_ORIGIN` | `http://localhost:3000` | Allowed frontend origin |
 
-3. **Open** `http://localhost:3000` in your browser.
+### 2. Frontend
 
-> **Note:** The original project used `assets/js/app.js` as the script path. The updated version uses `app.js` in the root directory. Ensure your `index.html` `<script>` tag points to the correct location:
-> ```html
-> <script type="text/babel" src="app.js"></script>
-> ```
+Serve the project root with any static file server:
+
+```bash
+# from the workspot/ root
+python -m http.server 3000
+# or: npx serve .
+```
+
+Open `http://localhost:3000`. The frontend talks to `http://localhost:8080/api` by default (override with `window.API_BASE` before `api.js` loads).
+
+> **Note:** `index.html` loads `assets/js/api.js` **before** the Babel `assets/js/app.js`. The API client (`window.api`) must exist before the app renders.
 
 ---
 
 ## User Roles
+
+All seeded demo accounts use the password `password123`.
 
 ### 1. Workspace Seeker (User)
 - Browse and search workspaces
@@ -158,27 +185,28 @@ App (root)
 
 **Demo Login:**
 - Email: `alex@example.com`
-- Role: **Workspace Seeker**
+- Password: `password123`
 
 ### 2. Workspace Owner
 - All user features
 - Add and manage workspaces
 - Edit availability in real-time
 - View revenue and occupancy analytics
+- Withdraw earnings (balance = revenue − withdrawals)
 
 **Demo Login:**
-- Email: `sarah@example.com`
-- Role: **Workspace Owner**
+- Email: `sarah@example.com` (owns the 6 seeded workspaces)
+- Password: `password123`
 
 ### 3. SuperAdmin
-- All owner features
 - Platform-wide analytics dashboard
 - Manage all users, workspaces, and bookings
 - Monitor revenue and platform health
+- **Cannot be granted via signup** — seeded only
 
 **Demo Login:**
 - Email: `admin@workspot.ng`
-- Role: **Admin**
+- Password: `password123`
 
 ---
 
@@ -206,16 +234,42 @@ Platform overview with revenue chart, top workspaces, and user management.
 
 ## API & Data Model
 
-### Workspace Object
+All endpoints are under `/api`. Auth is `Authorization: Bearer <jwt>`.
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/auth/register` | – | Create user (role `user`/`owner` only), return `{token, user}` |
+| POST | `/auth/login` | – | Return `{token, user}` |
+| GET | `/auth/me` | any | Current user from JWT |
+| GET | `/workspaces` | – | List all workspaces (with tiers + derived rating) |
+| GET | `/workspaces/:id` | – | Workspace detail |
+| GET | `/workspaces/:id/reviews` | – | Reviews for a workspace |
+| POST | `/workspaces` | owner | Create workspace + tiers (owner from JWT) |
+| PATCH | `/workspaces/:id/availability` | owner | Update tier totals (must own it) |
+| POST | `/bookings` | any | **Transactional** booking — 409 if not enough availability |
+| GET | `/bookings` | any | Role-scoped: user→own, owner→their workspaces', admin→all |
+| GET | `/favorites` | any | User's favorite workspace ids |
+| POST | `/favorites/:workspaceId` | any | Add favorite |
+| DELETE | `/favorites/:workspaceId` | any | Remove favorite |
+| GET | `/owner/stats` | owner | Revenue, withdrawn, balance, occupancy |
+| GET | `/withdrawals` | owner | Withdrawal history |
+| POST | `/withdrawals` | owner | **Transactional** withdrawal (validates balance) |
+| GET | `/admin/stats` | superadmin | Platform totals |
+| GET | `/admin/users` | superadmin | All users with booking counts |
+
+**Server-computed money (never trusted from client):** booking `fee = round(subtotal × 0.05)`; withdrawal `fee = round(amount × 0.015)`. **Ratings and owner balances are derived** on read (`AVG(rating)`, `SUM(bookings.total) − SUM(withdrawals.amount)`), never stored.
+
+### Workspace Object (API response)
 ```javascript
 {
-  id: Number,
+  id: String,              // uuid
+  ownerId: String,         // uuid
   name: String,
   address: String,
   image: String,           // Primary image URL
   images: [String],        // Gallery image URLs
-  rating: Number,
-  reviews: Number,
+  rating: Number,          // derived AVG(rating), rounded to 1dp
+  reviews: Number,         // derived COUNT(*)
   description: String,
   amenities: [String],     // From predefined AMENITIES_LIST
   pricing: {
@@ -224,30 +278,31 @@ Platform overview with revenue chart, top workspaces, and user management.
     weekly: Number,
     monthly: Number
   },
-  ownerId: String,
   availability: {
-    hourly: { total: Number, booked: Number },
-    daily:  { total: Number, booked: Number },
-    weekly: { total: Number, booked: Number },
-    monthly:{ total: Number, booked: Number }
+    hourly: { total: Number, booked: Number, available: Number },
+    daily:  { total: Number, booked: Number, available: Number },
+    weekly: { total: Number, booked: Number, available: Number },
+    monthly:{ total: Number, booked: Number, available: Number }
   },
   featured: Boolean
 }
 ```
 
-### Booking Object
+### Booking Object (API response)
 ```javascript
 {
-  id: Number,
-  workspaceId: Number,
+  id: String,              // uuid
+  workspaceId: String,
   userId: String,
   userName: String,
   workspaceName: String,
   type: "hourly" | "daily" | "weekly" | "monthly",
   quantity: Number,
   date: String,            // YYYY-MM-DD
-  total: Number,           // NGN (includes 5% service fee)
-  status: "confirmed" | "pending"
+  subtotal: Number,        // NGN
+  fee: Number,             // NGN (5% service fee)
+  total: Number,           // NGN (subtotal + fee)
+  status: "confirmed" | "pending" | "cancelled"
 }
 ```
 
@@ -275,23 +330,25 @@ We welcome contributions! Please follow these steps:
 5. Open a Pull Request
 
 ### Development Notes
-- This is a **zero-build** project — no Webpack, Vite, or build step required
-- All components are in a single `app.js` file for simplicity
-- Tailwind classes are used directly in JSX
-- State is managed via React Hooks (no Redux, Zustand, etc.)
+- The **frontend** is a **zero-build** project — no Webpack, Vite, or build step. JSX is compiled in-browser by Babel Standalone.
+- Frontend components live in `assets/js/app.js`; the API client is in `assets/js/api.js`.
+- The **backend** is standard Go — `go run .` from `backend/`. Migrations and seed run automatically on boot.
+- Tailwind classes are used directly in JSX; frontend state is managed via React Hooks (no Redux/Zustand).
 
 ---
 
 ## Roadmap
 
-- [ ] Backend API integration (Node.js/Express or Python/FastAPI)
-- [ ] Database persistence (PostgreSQL or MongoDB)
+- [x] Backend API integration (Go / Gin)
+- [x] Database persistence (PostgreSQL)
+- [x] JWT authentication with role-based access
+- [x] Transactional bookings (no overbooking) and server-computed money
+- [x] Review and rating system (derived from real review rows)
 - [ ] Real-time availability updates via WebSockets
-- [ ] Mobile app (React Native or Flutter)
-- [ ] Paystack payment gateway integration
+- [ ] Paystack payment gateway integration (booking payment step is currently mock)
 - [ ] Email notifications for bookings
 - [ ] Workspace verification and approval workflow
-- [ ] Review and rating system (currently mock data)
+- [ ] Mobile app (React Native or Flutter)
 - [ ] Multi-city expansion beyond Nigeria
 
 ---
