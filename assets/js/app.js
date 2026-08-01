@@ -881,7 +881,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Btn v="ghost" s="sm" onClick={onLogin}>Sign In</Btn>
+                <Btn v="ghost" s="sm" onClick={onLogin} className="rounded-md">Sign In</Btn>
                 <Btn v="primary" s="sm" onClick={onLogin} className="rounded-md">Get Started</Btn>
               </div>
             )}
