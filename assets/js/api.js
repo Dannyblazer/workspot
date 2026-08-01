@@ -1,8 +1,8 @@
-// api.js — WorkSpot API client (plain JS, loaded before Babel app.js)
+// api.js — WorkSpot API client (plain JS, loaded before Babel app.js) -- I will change later
 (function(window) {
   'use strict';
 
-  const API_BASE = window.API_BASE || 'http://localhost:8080/api';
+  const API_BASE = window.API_BASE || 'https://workspot-backend.onrender.com/api';
   const TOKEN_KEY = 'workspot_token';
 
   // Token helpers
