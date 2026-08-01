@@ -329,7 +329,7 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           </div>
           <div className="pt-4 border-t border-gray-100 flex gap-3">
             <Btn v="ghost" onClick={onClose}>Cancel</Btn>
-            <Btn v="primary" full>Add Workspace</Btn>
+            <Btn v="primary" className="rounded-md" full>Add Workspace</Btn>
           </div>
         </form>
       </div>
@@ -1289,8 +1289,8 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-2xl font-bold text-[#0f172a]">Owner Dashboard</h2>
         <div className="flex flex-wrap gap-2">
-          <Btn v="accent" s="sm" onClick={onWithdraw}><I n="dollar" s={16} /> Withdraw</Btn>
-          <Btn v="primary" s="sm" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
+          <Btn v="accent" s="sm" className="rounded-md" onClick={onWithdraw}><I n="dollar" s={16}/> Withdraw</Btn>
+          <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
         </div>
       </div>
 
@@ -1355,7 +1355,7 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h2 className="text-2xl font-bold text-[#0f172a]">My Workspaces</h2>
-        <Btn v="primary" s="sm" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
+        <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
       </div>
       <div className="space-y-4">
         {myWorkspaces.map(w => (
