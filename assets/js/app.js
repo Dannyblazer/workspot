@@ -67,7 +67,7 @@ const Badge = ({ children, color = "gray" }) => {
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>{children}</span>;
 };
 
-const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card border border-gray-200/80 shadow-sm overflow-hidden ${hover ? "hover:shadow-soft hover:border-brand/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer" : ""} ${className}`}>{children}</div>;
+const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card rounded-md border border-gray-200/80 shadow-sm overflow-hidden ${hover ? "hover:shadow-soft hover:border-brand/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer" : ""} ${className}`}>{children}</div>;
 
 // ==================== AUTH MODAL ====================
 const AuthModal = ({ open, onClose, onLogin }) => {
@@ -600,7 +600,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
                 </div>
               </div>
 
-              <Btn v="primary" s="lg" full onClick={() => onBook(workspace)}>Book Now</Btn>
+              <Btn v="primary" s="lg" className="rounded-md" full onClick={() => onBook(workspace)}>Book Now</Btn>
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-gray-400">
                 <span className="flex items-center gap-1"><I n="check" s={12} c="text-emerald-400" /> Instant</span>
@@ -982,7 +982,7 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails })
             <div className="text-xs text-gray-400">Daily</div>
             <div className="text-sm font-semibold">₦{workspace.pricing.daily.toLocaleString()}</div>
           </div>
-          <Btn v="primary" s="sm" onClick={e => { e.stopPropagation(); onBook(workspace); }}>Book Now</Btn>
+          <Btn v="primary" s="sm" className="rounded-md" onClick={e => { e.stopPropagation(); onBook(workspace); }}>Book Now</Btn>
         </div>
       </div>
     </div>
