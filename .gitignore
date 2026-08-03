@@ -1,3 +1,5 @@
 docs/
 .env
 backend/
+.vsc*
+.vscode/
