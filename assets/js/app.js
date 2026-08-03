@@ -310,7 +310,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-card shadow-2xl max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="relative h-40 bg-gray-100">
-          <img src={workspace.image} alt={workspace.name} className="h-full object-cover" />
+          <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute bottom-4 left-4 right-4"><h3 className="font-display text-white text-xl font-bold tracking-tight">{workspace.name}</h3><p className="text-white/80 text-sm">{workspace.address}</p></div>
           <button onClick={onClose} className="absolute top-3 right-3 bg-white/20 backdrop-blur text-white rounded-full p-1.5 hover:bg-white/30"><I n="close" s={18} /></button>
@@ -1095,7 +1095,7 @@ const Hero = ({ onSearch }) => {
 const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails }) => (
   <Card className="group" hover onClick={() => onViewDetails && onViewDetails(workspace)}>
     <div className="relative h-52 overflow-hidden">
-      <img src={workspace.image} alt={workspace.name} className="h-full object-cover group-hover:scale-[1.07] transition-transform duration-700 ease-out" />
+      <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover group-hover:scale-[1.07] transition-transform duration-700 ease-out" />
       {workspace.featured && <div className="absolute top-3 left-3 bg-brand-accent text-white text-[11px] font-semibold tracking-wide px-2.5 py-1 rounded-full">Featured</div>}
       <div className="absolute top-3 right-3 bg-white/90 backdrop-blur text-gray-900 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"><I n="star" s={12} c="text-amber-500" /> {workspace.rating}</div>
       {onToggleFav && (
