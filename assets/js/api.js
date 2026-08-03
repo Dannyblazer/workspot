@@ -115,10 +115,18 @@
     return request('/admin/users', { auth: true });
   }
 
+  // Google Sign-In
+  async function loginWithGoogle(credential, role) {
+    return request('/auth/google', { 
+      method: 'POST', 
+      body: { credential, ...(role ? { role } : {}) } 
+    });
+  }
+
   // Export to window
   window.api = {
     getToken, setToken, clearToken,
-    register, login, me,
+    register, login, loginWithGoogle, me,
     listWorkspaces, getWorkspace, getReviews, createWorkspace, updateAvailability,
     createBooking, listBookings,
     listFavorites, addFavorite, removeFavorite,
