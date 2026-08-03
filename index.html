@@ -17,6 +17,11 @@
       }
     };
   </script>
+  <script>
+    // Configuration
+    window.API_BASE = window.API_BASE || 'http://localhost:8080/api';
+    window.GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '';
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -41,10 +46,10 @@
     .focus\:border-brand:focus { border-color: #171717 !important; }
     .text-brand-accent { color: #B9683C !important; }
     .bg-brand-accent { background-color: #B9683C !important; }
-    .border-brand-accent { border-color: #B9683C !important; }
+    .border-brand-accent { border-brand-accent { border-color: #B9683C !important; }
 
     /* ===== Scroll-reveal (gated on reduced-motion) ===== */
-    .reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); will-change: opacity, transform; }
+    .reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.22,transform,00,00,);
     .reveal.is-visible { opacity: 1; transform: none; }
     .reveal-d1 { transition-delay: .08s; }
     .reveal-d2 { transition-delay: .16s; }
@@ -78,6 +83,8 @@
 </head>
 <body class="bg-white text-gray-900 antialiased">
   <div id="root"></div>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="assets/js/api.js"></script>
   <script type="text/babel" src="assets/js/app.js"></script>
 </body>
