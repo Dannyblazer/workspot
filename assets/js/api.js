@@ -115,11 +115,11 @@
     return request('/admin/users', { auth: true });
   }
 
-  // Google Sign-In
+  // Google Sign-In — posts the GSI credential (JWT) to the backend.
   async function loginWithGoogle(credential, role) {
-    return request('/auth/google', { 
-      method: 'POST', 
-      body: { credential, ...(role ? { role } : {}) } 
+    return request('/auth/google', {
+      method: 'POST',
+      body: { credential, ...(role ? { role } : {}) }
     });
   }
 

@@ -18,9 +18,8 @@
     };
   </script>
   <script>
-    // Configuration
-    window.API_BASE = window.API_BASE
-    console.log(API_BASE)
+    // Runtime config (override before api.js loads if needed).
+    window.API_BASE = window.API_BASE || 'https://workspot-backend.onrender.com/api';
     window.GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '294682814437-d5u6trnt40ijfiq09o9m1ptlj8h4iavk.apps.googleusercontent.com';
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -47,10 +46,10 @@
     .focus\:border-brand:focus { border-color: #171717 !important; }
     .text-brand-accent { color: #B9683C !important; }
     .bg-brand-accent { background-color: #B9683C !important; }
-    .border-brand-accent { border-brand-accent { border-color: #B9683C !important; }
+    .border-brand-accent { border-color: #B9683C !important; }
 
     /* ===== Scroll-reveal (gated on reduced-motion) ===== */
-    .reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.22,transform,00,00,);
+    .reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1); will-change: opacity, transform; }
     .reveal.is-visible { opacity: 1; transform: none; }
     .reveal-d1 { transition-delay: .08s; }
     .reveal-d2 { transition-delay: .16s; }
