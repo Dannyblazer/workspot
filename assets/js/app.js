@@ -232,7 +232,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
         target.innerHTML = "";
         google.accounts.id.renderButton(target, {
           theme: "outline", size: "large", text: "continue_with",
-          shape: "rectangular", logo_alignment: "left", width: 320,
+          shape: "rectangular", logo_alignment: "center", width: 320,
         });
       } catch (err) {
         console.error("Google Identity Services initialization failed:", err);
