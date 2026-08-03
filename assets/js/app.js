@@ -152,8 +152,6 @@ const Badge = ({ children, color = "gray" }) => {
 const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-500 ease-out ${hover ? "ws-hover hover:shadow-lift hover:border-gray-900/20 hover:-translate-y-1.5 cursor-pointer" : ""} ${className}`}>{children}</div>;
 
 // ==================== AUTH MODAL ====================
-// ==================== AUTH MODAL ====================
-// ==================== AUTH MODAL ====================
 const AuthModal = ({ open, onClose, onLogin }) => {
   const [mode, setMode] = useState("login");
   const [role, setRole] = useState("user");
@@ -196,12 +194,15 @@ const AuthModal = ({ open, onClose, onLogin }) => {
     }
   };
 
-  const handleGoogleLogin = async (credential) => {
+  // Google's callback hands back a response object; the JWT is response.credential.
+  const handleGoogleLogin = async (response) => {
+    const credential = response && response.credential;
+    if (!credential) { setGoogleError("Google Sign-In failed"); return; }
     setGoogleError("");
     setGoogleLoading(true);
     try {
-      const res = mode === "login" 
-        ? await api.loginWithGoogle(credential, undefined) 
+      const res = mode === "login"
+        ? await api.loginWithGoogle(credential, undefined)
         : await api.loginWithGoogle(credential, role === "owner" ? "owner" : undefined);
       api.setToken(res.token);
       onLogin(res.user);
@@ -213,45 +214,47 @@ const AuthModal = ({ open, onClose, onLogin }) => {
     }
   };
 
-  // Initialize Google Sign-In client
+  // Render the Google button whenever the modal opens (or mode/role change), once
+  // the target div is in the DOM. Re-running keeps the callback's mode/role fresh.
   useEffect(() => {
+    if (!open) return;
     const clientId = window.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-    if (typeof google !== 'undefined' && google.accounts) {
+    if (typeof google === 'undefined' || !google.accounts) {
+      setGoogleError("Google Sign-In is not available");
+      return;
+    }
+    // The button div mounts with the modal; wait a tick so it exists.
+    const id = setTimeout(() => {
+      const target = document.getElementById("google-login-button");
+      if (!target) return;
       try {
-        google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleLogin
+        google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleLogin });
+        target.innerHTML = "";
+        google.accounts.id.renderButton(target, {
+          theme: "outline", size: "large", text: "continue_with",
+          shape: "rectangular", logo_alignment: "left", width: 320,
         });
-        google.accounts.id.renderButton(
-          document.getElementById("google-login-button"),
-          { 
-            theme: "outline", 
-            size: "large", 
-            text: "signin_with", 
-            shape: "rectangular", 
-            logo_alignment: "left"
-          }
-        );
-      } catch (error) {
-        console.error("Google Identity Services initialization failed:", error);
+      } catch (err) {
+        console.error("Google Identity Services initialization failed:", err);
         setGoogleError("Google Sign-In is not available");
       }
-    }
-  }, []);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [open, mode, role]);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-card shadow-2xl max-w-md overflow-hidden">
+      <div className="bg-white rounded-card shadow-2xl w-full max-w-md overflow-hidden">
         <div className="flex border-b border-gray-100">
           <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "login" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign In</button>
           <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
         </div>
         <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>}
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="you@example.com" required /></div>
-            {mode === "login" || mode === "signup" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="••••••••" required /></div>}
+            {mode === "signup" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>}
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="you@example.com" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="••••••••" required /></div>
             {mode === "signup" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
@@ -263,15 +266,14 @@ const AuthModal = ({ open, onClose, onLogin }) => {
             )}
             {error && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
             {googleError && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{googleError}</div>}
-            <div className="flex items-center justify-between pt-2">
-              <Btn v="primary" s="lg" full disabled={loading || googleLoading}>
-                {loading || googleLoading ? "Processing..." : (mode === "login" ? "Sign In" : "Create Account")}
-              </Btn>
-              {(mode === "login" || mode === "signup") && (
-                <div id="google-login-button" className="mt-3" />
-              )}
-            </div>
+            <Btn v="primary" s="lg" full disabled={loading || googleLoading}>{loading || googleLoading ? "Processing..." : (mode === "login" ? "Sign In" : "Create Account")}</Btn>
           </form>
+          <div className="flex items-center gap-3 my-5">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs uppercase tracking-[0.18em] text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+          <div id="google-login-button" className="flex justify-center min-h-[44px]" />
           <div className="mt-4 text-center"><button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button></div>
         </div>
       </div>
@@ -279,8 +281,6 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   );
 };
 
-// ==================== BOOKING MODAL ====================
-// ==================== BOOKING MODAL ====================
 // ==================== BOOKING MODAL ====================
 const BookingModal = ({ workspace, open, onClose, onBook }) => {
   const [bookingType, setBookingType] = useState("daily");
@@ -1081,7 +1081,7 @@ const Hero = ({ onSearch }) => {
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
             <label className="flex min-w-0 items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="location" s={20} c="text-brand-accent flex-shrink-0" /><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium tracking-wide text-gray-400">LOCATION</span><input aria-label="Workspace location" type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Lagos, Nigeria" className="bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-500" /></span></label>
             <label className="flex items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="calendar" s={20} c="text-brand-accent flex-shrink-0" /><span><span className="block text-[11px] font-medium tracking-wide text-gray-400">BOOKING TYPE</span><select aria-label="Booking duration" value={bookingType} onChange={e => setBookingType(e.target.value)} className="-ml-1 bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></span></label>
-            <label className="flex items-center gap-3 rounded-control px-3 py-2.5"><I n="users" s={20} c="text-brand-accent flex-shrink-0" /><span className="min-w-0"><span className="block text-[11px] font-medium tracking-wide text-gray-400">FOR</span><select aria-label="Number of people" value={people} onChange={e => setPeople(e.target.value)} className="-ml-1 max-bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5+">5+ people</option></select></span></label>
+            <label className="flex items-center gap-3 rounded-control px-3 py-2.5"><I n="users" s={20} c="text-brand-accent flex-shrink-0" /><span className="min-w-0"><span className="block text-[11px] font-medium tracking-wide text-gray-400">FOR</span><select aria-label="Number of people" value={people} onChange={e => setPeople(e.target.value)} className="-ml-1 bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5+">5+ people</option></select></span></label>
             <Btn v="primary" s="lg" className="min-h-[50px] rounded-md" onClick={() => onSearch(location, bookingType, people)}><I n="search" s={18} /> Search spaces</Btn>
           </div>
         </Reveal>
