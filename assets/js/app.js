@@ -1,4 +1,86 @@
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+// ==================== MOTION PRIMITIVES ====================
+// True when the user prefers reduced motion; motion features no-op when set.
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// True on touch / coarse-pointer devices (custom cursor is disabled there).
+const isCoarsePointer = () =>
+  typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: none), (pointer: coarse)").matches;
+
+// <Reveal> — fades + rises its children into view once when scrolled to.
+// Falls back to always-visible when reduced-motion or IntersectionObserver is unavailable.
+const Reveal = ({ children, as = "div", className = "", delay = 0, ...rest }) => {
+  const ref = useRef(null);
+  const El = as;
+  const noMotion = prefersReducedMotion() || typeof IntersectionObserver === "undefined";
+  const [visible, setVisible] = useState(noMotion);
+
+  useEffect(() => {
+    if (noMotion || !ref.current) return;
+    const node = ref.current;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { setVisible(true); obs.unobserve(e.target); }
+      });
+    }, { threshold: 0.15, rootMargin: "0px 0px -8% 0px" });
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, [noMotion]);
+
+  const delayClass = delay ? ` reveal-d${delay}` : "";
+  const cls = noMotion ? className : `reveal${delayClass}${visible ? " is-visible" : ""} ${className}`;
+  return <El ref={ref} className={cls} {...rest}>{children}</El>;
+};
+
+// <CustomCursor> — a difference-blend dot + trailing ring that grows over
+// interactive elements. Renders nothing on touch devices or with reduced-motion.
+const CustomCursor = () => {
+  const dotRef = useRef(null);
+  const ringRef = useRef(null);
+
+  useEffect(() => {
+    if (prefersReducedMotion() || isCoarsePointer()) return;
+    const dot = dotRef.current, ring = ringRef.current;
+    if (!dot || !ring) return;
+
+    document.body.classList.add("ws-cursor-on");
+    let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+    let rx = mx, ry = my, raf = 0;
+
+    const onMove = (e) => {
+      mx = e.clientX; my = e.clientY;
+      dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
+    };
+    const tick = () => {
+      rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
+      ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+      raf = requestAnimationFrame(tick);
+    };
+    const interactive = "a, button, [role=button], input, select, textarea, label, .ws-hover";
+    const onOver = (e) => { if (e.target.closest && e.target.closest(interactive)) ring.classList.add("ws-cursor-hover"); };
+    const onOut = (e) => { if (e.target.closest && e.target.closest(interactive)) ring.classList.remove("ws-cursor-hover"); };
+
+    window.addEventListener("mousemove", onMove, { passive: true });
+    document.addEventListener("mouseover", onOver, true);
+    document.addEventListener("mouseout", onOut, true);
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseover", onOver, true);
+      document.removeEventListener("mouseout", onOut, true);
+      document.body.classList.remove("ws-cursor-on");
+    };
+  }, []);
+
+  return <>
+    <div ref={ringRef} className="ws-cursor-ring" />
+    <div ref={dotRef} className="ws-cursor-dot" />
+  </>;
+};
 
 // ==================== CONSTANTS ====================
 // Ordered billing/availability tiers, used throughout the UI.
@@ -55,10 +137,10 @@ const I = ({ n, s = 20, c = "" }) => {
 
 // ==================== UI COMPONENTS ====================
 const Btn = ({ children, v = "primary", s = "md", onClick, className = "", disabled = false, full = false }) => {
-  const base = "inline-flex items-center justify-center gap-2 font-semibold rounded-button transition-all duration-200 cursor-pointer focus:outline-none focus:ring-4 focus:ring-brand/20";
-  const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
-  const variants = { primary: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", secondary: "bg-white text-gray-900 border border-gray-200 hover:bg-gray-50", ghost: "bg-transparent text-gray-600 hover:text-brand hover:bg-brand-soft", danger: "bg-red-50 text-red-600 hover:bg-red-100", success: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100", accent: "bg-brand text-white shadow-sm hover:bg-brand-hover hover:-translate-y-0.5", purple: "bg-brand-soft text-brand hover:bg-[#E6E6E2]" };
-  const brandStyle = (v === "primary" || v === "accent") ? { backgroundColor: "#171717", color: "#FFFFFF" } : undefined;
+  const base = "ws-hover inline-flex items-center justify-center gap-2 font-medium tracking-tight rounded-button transition-all duration-300 ease-out cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 focus-visible:ring-offset-2 active:scale-[0.97]";
+  const sizes = { sm: "px-3.5 py-1.5 text-xs", md: "px-5 py-2.5 text-sm", lg: "px-7 py-3.5 text-base" };
+  const variants = { primary: "bg-brand text-white hover:bg-brand-hover hover:-translate-y-0.5 shadow-sm hover:shadow-lift", secondary: "bg-white text-gray-900 border border-gray-200 hover:border-gray-900 hover:-translate-y-0.5", ghost: "bg-transparent text-gray-600 hover:text-brand hover:bg-brand-soft", danger: "bg-red-50 text-red-600 hover:bg-red-100", success: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100", accent: "text-white hover:-translate-y-0.5 shadow-sm hover:shadow-lift", purple: "bg-brand-soft text-brand hover:bg-[#E6E6E2]" };
+  const brandStyle = v === "primary" ? { backgroundColor: "#171717", color: "#FFFFFF" } : v === "accent" ? { backgroundColor: "#B9683C", color: "#FFFFFF" } : undefined;
   return <button onClick={onClick} disabled={disabled} style={brandStyle} className={`${base} ${sizes[s]} ${variants[v]} ${full ? "w-full" : ""} ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}>{children}</button>;
 };
 
@@ -67,7 +149,7 @@ const Badge = ({ children, color = "gray" }) => {
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>{children}</span>;
 };
 
-const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card rounded-md border border-gray-200/80 shadow-sm overflow-hidden ${hover ? "hover:shadow-soft hover:border-brand/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer" : ""} ${className}`}>{children}</div>;
+const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-500 ease-out ${hover ? "ws-hover hover:shadow-lift hover:border-gray-900/20 hover:-translate-y-1.5 cursor-pointer" : ""} ${className}`}>{children}</div>;
 
 // ==================== AUTH MODAL ====================
 const AuthModal = ({ open, onClose, onLogin }) => {
@@ -112,16 +194,16 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="bg-white rounded-card shadow-2xl max-w-md overflow-hidden">
         <div className="flex border-b border-gray-100">
-          <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-semibold ${mode === "login" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign In</button>
-          <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
+          <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "login" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign In</button>
+          <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
         </div>
         <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>}
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="you@example.com" required /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="••••••••" required /></div>
+            {mode === "signup" && <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>}
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="you@example.com" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="••••••••" required /></div>
             {mode === "signup" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
@@ -168,11 +250,11 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-card shadow-2xl max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="relative h-40 bg-gray-100">
-          <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover" />
+          <img src={workspace.image} alt={workspace.name} className="h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          <div className="absolute bottom-4 left-4 right-4"><h3 className="text-white text-xl font-bold">{workspace.name}</h3><p className="text-white/80 text-sm">{workspace.address}</p></div>
+          <div className="absolute bottom-4 left-4 right-4"><h3 className="font-display text-white text-xl font-bold tracking-tight">{workspace.name}</h3><p className="text-white/80 text-sm">{workspace.address}</p></div>
           <button onClick={onClose} className="absolute top-3 right-3 bg-white/20 backdrop-blur text-white rounded-full p-1.5 hover:bg-white/30"><I n="close" s={18} /></button>
         </div>
         <div className="p-6">
@@ -199,7 +281,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Subtotal</span><span className="font-medium">₦{total.toLocaleString()}</span></div>
@@ -218,13 +300,13 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Card Number</label>
                 <div className="relative">
-                  <input type="text" placeholder="4242 4242 4242 4242" className="w-full px-4 py-2.5 pl-10 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                  <input type="text" placeholder="4242 4242 4242 4242" className="px-4 py-2.5 pl-10 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
                   <I n="creditCard" s={18} c="absolute left-3 top-3 text-gray-400" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Expiry</label><input type="text" placeholder="MM/YY" className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">CVC</label><input type="text" placeholder="123" className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">Expiry</label><input type="text" placeholder="MM/YY" className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-2">CVC</label><input type="text" placeholder="123" className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
               </div>
               <Btn v="primary" s="lg" full onClick={() => { onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, date }); onClose(); }}><I n="creditCard" s={18} /> Pay ₦{grandTotal.toLocaleString()} & Book</Btn>
               <p className="text-xs text-center text-gray-400">Secured by Paystack. Your payment is encrypted.</p>
@@ -257,9 +339,9 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-card shadow-2xl max-w-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
-          <h3 className="text-lg font-bold">Add New Workspace</h3>
+          <h3 className="font-display text-lg font-bold tracking-tight">Add New Workspace</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
         </div>
         <form onSubmit={e => {
@@ -276,20 +358,20 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           onClose();
         }} className="p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="e.g. The Hive Coworking" required /></div>
-            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Full address" required /></div>
-            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none h-20 resize-none" placeholder="Describe your workspace..." /></div>
+            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="e.g. The Hive Coworking" required /></div>
+            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Full address" required /></div>
+            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none h-20 resize-none" placeholder="Describe your workspace..." /></div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Pricing (₦)</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="w-full px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div></div>)}
+              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div></div>)}
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Available Slots</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t} slots</label><input type="number" value={form.availability[t].total} onChange={e => setForm({...form, availability: {...form.availability, [t]: {...form.availability[t], total: e.target.value}}})} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div>)}
+              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t} slots</label><input type="number" value={form.availability[t].total} onChange={e => setForm({...form, availability: {...form.availability, [t]: {...form.availability[t], total: e.target.value}}})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div>)}
             </div>
           </div>
           <div>
@@ -298,7 +380,7 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
               <button 
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none text-left bg-white flex items-center justify-between"
+                className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none text-left bg-white flex items-center justify-between"
               >
                 <span className={form.amenities.length === 0 ? "text-gray-400" : "text-gray-900"}>
                   {form.amenities.length === 0 ? "Select amenities..." : `${form.amenities.length} selected`}
@@ -306,7 +388,7 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
                 <I n={dropdownOpen ? "chevronLeft" : "arrowRight"} s={16} c="text-gray-400" />
               </button>
               {dropdownOpen && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-20 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                   {AMENITIES_LIST.map(amenity => (
                     <label key={amenity} className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer">
                       <input 
@@ -344,9 +426,9 @@ const EditAvailabilityModal = ({ workspace, open, onClose, onSave }) => {
   if (!open || !workspace) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="bg-white rounded-card shadow-2xl max-w-md p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold">Update Availability</h3>
+          <h3 className="font-display text-lg font-bold tracking-tight">Update Availability</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
         </div>
         <p className="text-sm text-gray-500 mb-4">{workspace.name}</p>
@@ -400,7 +482,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
           <img 
             src={workspace.images[activeImage] || workspace.image} 
             alt={workspace.name} 
-            className="w-full h-full object-cover"
+            className="h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -446,7 +528,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
                 onClick={() => setActiveImage(idx)}
                 className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${activeImage === idx ? "border-[#f59e0b]" : "border-transparent"}`}
               >
-                <img src={img} alt="" className="w-full h-full object-cover" />
+                <img src={img} alt="" className="h-full object-cover" />
               </button>
             ))}
           </div>
@@ -461,7 +543,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
             <div className="bg-white rounded-card p-4 sm:p-6 mb-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-[#0f172a]">{workspace.name}</h1>
+                  <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-[-0.035em] text-gray-900">{workspace.name}</h1>
                   <p className="text-gray-500 mt-1 flex items-center gap-1"><I n="location" s={16} /> {workspace.address}</p>
                 </div>
                 <div className="flex items-center gap-2 bg-amber-50 px-3 py-2 rounded-lg">
@@ -581,7 +663,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
           <div className="lg:col-span-1">
             <div className="bg-white rounded-card p-4 sm:p-6 lg:sticky lg:top-24">
               <div className="text-center mb-6">
-                <div className="text-3xl font-bold text-[#0f172a]">₦{workspace.pricing.hourly.toLocaleString()}</div>
+                <div className="font-display text-3xl font-bold tracking-tight text-gray-900">₦{workspace.pricing.hourly.toLocaleString()}</div>
                 <div className="text-gray-400 text-sm">per hour</div>
               </div>
 
@@ -644,7 +726,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <I n="shield" s={24} c="text-amber-400" />
-                <h1 className="text-2xl font-bold">SuperAdmin Dashboard</h1>
+                <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em]">SuperAdmin Dashboard</h1>
               </div>
               <p className="text-gray-400 text-sm">Manage all workspaces, bookings, and platform analytics</p>
             </div>
@@ -668,7 +750,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
                 <I n={s.icon} s={20} c={`text-${s.color}-500`} />
                 <Badge color={s.color}>{s.label}</Badge>
               </div>
-              <div className="text-2xl font-bold text-[#0f172a]">{s.value}</div>
+              <div className="font-display text-2xl font-bold tracking-tight text-gray-900">{s.value}</div>
             </Card>
           ))}
         </div>
@@ -752,7 +834,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
                   value={searchTerm} 
                   onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Search workspaces..." 
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" 
+                  className="pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" 
                 />
               </div>
             </div>
@@ -837,35 +919,35 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
 const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-gray-200/80">
+    <nav className="sticky top-0 z-40 bg-[#FAFAF8]/80 backdrop-blur-xl border-b border-gray-200/70">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView("landing")}>
+          <div className="ws-hover flex items-center gap-2 cursor-pointer" onClick={() => setView("landing")}>
             <img src="assets/workspot-logo.svg" alt="" className="h-9 w-9" />
-            <span className="text-xl font-extrabold tracking-tight text-gray-900">WorkSpot</span>
+            <span className="font-display text-xl font-bold tracking-[-0.03em] text-gray-900">WorkSpot</span>
           </div>
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-8">
             {!user ? (
               <>
-                <button onClick={() => setView("landing")} className={`text-sm font-semibold ${view === "landing" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Find Space</button>
-                <button onClick={() => setView("listings")} className={`text-sm font-semibold ${view === "listings" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Listings</button>
-                <button onClick={() => setView("how-it-works")} className={`text-sm font-semibold ${view === "how-it-works" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>How it Works</button>
+                <button onClick={() => setView("landing")} className={`link-sweep text-sm font-medium tracking-tight ${view === "landing" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Find Space</button>
+                <button onClick={() => setView("listings")} className={`link-sweep text-sm font-medium tracking-tight ${view === "listings" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Listings</button>
+                <button onClick={() => setView("how-it-works")} className={`link-sweep text-sm font-medium tracking-tight ${view === "how-it-works" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>How it Works</button>
               </>
             ) : user.role === "superadmin" ? (
               <>
-                <button onClick={() => setView("superadmin-dashboard")} className={`text-sm font-semibold ${view === "superadmin-dashboard" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Admin Dashboard</button>
+                <button onClick={() => setView("superadmin-dashboard")} className={`link-sweep text-sm font-medium tracking-tight ${view === "superadmin-dashboard" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Admin Dashboard</button>
               </>
             ) : user.role === "owner" ? (
               <>
-                <button onClick={() => setView("owner-dashboard")} className={`text-sm font-semibold ${view === "owner-dashboard" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Dashboard</button>
-                <button onClick={() => setView("owner-workspaces")} className={`text-sm font-semibold ${view === "owner-workspaces" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>My Workspaces</button>
-                <button onClick={() => setView("owner-bookings")} className={`text-sm font-semibold ${view === "owner-bookings" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Bookings</button>
+                <button onClick={() => setView("owner-dashboard")} className={`link-sweep text-sm font-medium tracking-tight ${view === "owner-dashboard" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Dashboard</button>
+                <button onClick={() => setView("owner-workspaces")} className={`link-sweep text-sm font-medium tracking-tight ${view === "owner-workspaces" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>My Workspaces</button>
+                <button onClick={() => setView("owner-bookings")} className={`link-sweep text-sm font-medium tracking-tight ${view === "owner-bookings" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Bookings</button>
               </>
             ) : (
               <>
-                <button onClick={() => setView("discover")} className={`text-sm font-semibold ${view === "discover" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Discover</button>
-                <button onClick={() => setView("my-bookings")} className={`text-sm font-semibold ${view === "my-bookings" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>My Bookings</button>
-                <button onClick={() => setView("favorites")} className={`text-sm font-semibold ${view === "favorites" ? "text-brand" : "text-gray-500 hover:text-gray-900"}`}>Favorites</button>
+                <button onClick={() => setView("discover")} className={`link-sweep text-sm font-medium tracking-tight ${view === "discover" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Discover</button>
+                <button onClick={() => setView("my-bookings")} className={`link-sweep text-sm font-medium tracking-tight ${view === "my-bookings" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>My Bookings</button>
+                <button onClick={() => setView("favorites")} className={`link-sweep text-sm font-medium tracking-tight ${view === "favorites" ? "text-brand-accent" : "text-gray-500 hover:text-gray-900"}`}>Favorites</button>
               </>
             )}
           </div>
@@ -893,25 +975,25 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
           {!user ? (
             <>
-              <button onClick={() => { setView("landing"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Find Space</button>
-              <button onClick={() => { setView("listings"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Listings</button>
-              <button onClick={() => { setView("how-it-works"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">How it Works</button>
+              <button onClick={() => { setView("landing"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Find Space</button>
+              <button onClick={() => { setView("listings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Listings</button>
+              <button onClick={() => { setView("how-it-works"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">How it Works</button>
             </>
           ) : user.role === "superadmin" ? (
             <>
-              <button onClick={() => { setView("superadmin-dashboard"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Admin Dashboard</button>
+              <button onClick={() => { setView("superadmin-dashboard"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Admin Dashboard</button>
             </>
           ) : user.role === "owner" ? (
             <>
-              <button onClick={() => { setView("owner-dashboard"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Dashboard</button>
-              <button onClick={() => { setView("owner-workspaces"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">My Workspaces</button>
-              <button onClick={() => { setView("owner-bookings"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Bookings</button>
+              <button onClick={() => { setView("owner-dashboard"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Dashboard</button>
+              <button onClick={() => { setView("owner-workspaces"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">My Workspaces</button>
+              <button onClick={() => { setView("owner-bookings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Bookings</button>
             </>
           ) : (
             <>
-              <button onClick={() => { setView("discover"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Discover</button>
-              <button onClick={() => { setView("my-bookings"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">My Bookings</button>
-              <button onClick={() => { setView("favorites"); setMobileOpen(false); }} className="block w-full text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Favorites</button>
+              <button onClick={() => { setView("discover"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Discover</button>
+              <button onClick={() => { setView("my-bookings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">My Bookings</button>
+              <button onClick={() => { setView("favorites"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Favorites</button>
             </>
           )}
         </div>
@@ -928,24 +1010,24 @@ const Hero = ({ onSearch }) => {
   return (
     <section className="relative overflow-hidden border-b border-gray-100 bg-white">
       <div className="absolute right-0 top-0 hidden h-full w-[54%] lg:block">
-        <img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=85" alt="Bright, modern workspace" className="h-full w-full object-cover" />
+        <img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1400&q=85" alt="Bright, modern workspace" className="h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
       </div>
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-16 pb-10 sm:pt-20 sm:pb-12">
-        <div className="max-w-2xl">
-          <p className="mb-4 text-sm font-semibold text-brand">FLEXIBLE WORKSPACES, ON YOUR TERMS</p>
-          <h1 className="text-4xl sm:text-5xl lg:text-[58px] font-extrabold tracking-[-0.045em] leading-[1.04] text-gray-900">Find the perfect <span className="text-[#B9683C]">workspace</span>, anywhere.</h1>
-          <p className="mt-5 max-w-xl text-lg leading-7 text-gray-500">Book inspiring spaces by the hour or day — from quiet corners to premium offices.</p>
-        </div>
-        <div className="relative mt-8 rounded-card border border-gray-200 bg-white p-2.5 shadow-soft">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-14 sm:pt-28 sm:pb-20">
+        <Reveal className="max-w-2xl">
+          <p className="mb-5 text-xs font-semibold tracking-[0.22em] text-brand-accent uppercase">Flexible workspaces, on your terms</p>
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-[80px] font-bold tracking-[-0.04em] leading-[0.98] text-gray-900">Find the perfect <span className="text-brand-accent">workspace</span>, anywhere.</h1>
+          <p className="mt-6 max-w-xl text-lg leading-8 text-gray-500">Book inspiring spaces by the hour or day — from quiet corners to premium offices.</p>
+        </Reveal>
+        <Reveal delay={1} className="relative mt-10 rounded-card border border-gray-200 bg-white p-2.5 shadow-soft">
           <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_auto] lg:items-center">
-            <label className="flex min-w-0 items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="location" s={20} c="text-brand flex-shrink-0" /><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium text-gray-400">LOCATION</span><input aria-label="Workspace location" type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Lagos, Nigeria" className="w-full bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-500" /></span></label>
-            <label className="flex items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="calendar" s={20} c="text-brand flex-shrink-0" /><span><span className="block text-[11px] font-medium text-gray-400">BOOKING TYPE</span><select aria-label="Booking duration" value={bookingType} onChange={e => setBookingType(e.target.value)} className="-ml-1 bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></span></label>
-            <label className="flex items-center gap-3 rounded-control px-3 py-2.5"><I n="users" s={20} c="text-brand flex-shrink-0" /><span className="min-w-0"><span className="block text-[11px] font-medium text-gray-400">FOR</span><select aria-label="Number of people" value={people} onChange={e => setPeople(e.target.value)} className="-ml-1 max-w-full bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5+">5+ people</option></select></span></label>
+            <label className="flex min-w-0 items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="location" s={20} c="text-brand-accent flex-shrink-0" /><span className="min-w-0 flex-1"><span className="block text-[11px] font-medium tracking-wide text-gray-400">LOCATION</span><input aria-label="Workspace location" type="text" value={location} onChange={e => setLocation(e.target.value)} placeholder="Lagos, Nigeria" className="bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-500" /></span></label>
+            <label className="flex items-center gap-3 rounded-control px-3 py-2.5 lg:border-r lg:border-gray-100"><I n="calendar" s={20} c="text-brand-accent flex-shrink-0" /><span><span className="block text-[11px] font-medium tracking-wide text-gray-400">BOOKING TYPE</span><select aria-label="Booking duration" value={bookingType} onChange={e => setBookingType(e.target.value)} className="-ml-1 bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></span></label>
+            <label className="flex items-center gap-3 rounded-control px-3 py-2.5"><I n="users" s={20} c="text-brand-accent flex-shrink-0" /><span className="min-w-0"><span className="block text-[11px] font-medium tracking-wide text-gray-400">FOR</span><select aria-label="Number of people" value={people} onChange={e => setPeople(e.target.value)} className="-ml-1 max-bg-transparent text-sm font-semibold text-gray-800 outline-none"><option value="1">1 person</option><option value="2">2 people</option><option value="3">3 people</option><option value="4">4 people</option><option value="5+">5+ people</option></select></span></label>
             <Btn v="primary" s="lg" className="min-h-[50px] rounded-md" onClick={() => onSearch(location, bookingType, people)}><I n="search" s={18} /> Search spaces</Btn>
           </div>
-        </div>
-        <div className="mt-6 flex flex-wrap gap-x-8 gap-y-3 text-sm text-gray-600"><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="trendUp" s={15} c="text-brand" /></span>Instant booking</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="shield" s={15} c="text-brand" /></span>Verified spaces</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="check" s={15} c="text-brand" /></span>Flexible terms</span></div>
+        </Reveal>
+        <Reveal delay={2} className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm text-gray-600"><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="trendUp" s={15} c="text-brand-accent" /></span>Instant booking</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="shield" s={15} c="text-brand-accent" /></span>Verified spaces</span><span className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft"><I n="check" s={15} c="text-brand-accent" /></span>Flexible terms</span></Reveal>
       </div>
     </section>
   );
@@ -954,9 +1036,9 @@ const Hero = ({ onSearch }) => {
 // ==================== WORKSPACE CARD ====================
 const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails }) => (
   <Card className="group" hover onClick={() => onViewDetails && onViewDetails(workspace)}>
-    <div className="relative h-48 overflow-hidden">
-      <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-      {workspace.featured && <div className="absolute top-3 left-3 bg-[#f59e0b] text-white text-xs font-bold px-2.5 py-1 rounded-full">Featured</div>}
+    <div className="relative h-52 overflow-hidden">
+      <img src={workspace.image} alt={workspace.name} className="h-full object-cover group-hover:scale-[1.07] transition-transform duration-700 ease-out" />
+      {workspace.featured && <div className="absolute top-3 left-3 bg-brand-accent text-white text-[11px] font-semibold tracking-wide px-2.5 py-1 rounded-full">Featured</div>}
       <div className="absolute top-3 right-3 bg-white/90 backdrop-blur text-gray-900 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1"><I n="star" s={12} c="text-amber-500" /> {workspace.rating}</div>
       {onToggleFav && (
         <button onClick={e => { e.stopPropagation(); onToggleFav(workspace.id); }} className={`absolute bottom-3 right-3 p-2 rounded-full backdrop-blur transition-all ${isFav ? "bg-red-500 text-white" : "bg-white/80 text-gray-400 hover:text-red-500"}`}>
@@ -964,8 +1046,8 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails })
         </button>
       )}
     </div>
-    <div className="p-4">
-      <h3 className="font-bold text-gray-900 text-lg">{workspace.name}</h3>
+    <div className="p-5">
+      <h3 className="font-display font-semibold tracking-[-0.02em] text-gray-900 text-lg">{workspace.name}</h3>
       <p className="text-sm text-gray-500 mt-1 flex items-center gap-1"><I n="location" s={14} /> {workspace.address}</p>
       <p className="text-sm text-gray-600 mt-2 line-clamp-2">{workspace.description}</p>
       <div className="flex flex-wrap gap-1.5 mt-3">
@@ -975,7 +1057,7 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails })
       <div className="flex items-end justify-between mt-4 pt-3 border-t border-gray-100">
         <div>
           <div className="text-xs text-gray-400">From</div>
-          <div className="text-xl font-bold text-[#0f172a]">₦{workspace.pricing.hourly.toLocaleString()}<span className="text-sm font-normal text-gray-400">/hr</span></div>
+          <div className="font-display text-xl font-bold tracking-tight text-[#0f172a]">₦{workspace.pricing.hourly.toLocaleString()}<span className="text-sm font-normal text-gray-400">/hr</span></div>
         </div>
         <div className="flex gap-2">
           <div className="text-right mr-2">
@@ -991,13 +1073,20 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails })
 
 // ==================== FEATURED SECTION ====================
 const FeaturedSection = ({ workspaces, onBook, onToggleFav, favorites, onViewDetails }) => (
-  <section className="py-16 bg-gray-50">
+  <section className="py-20 sm:py-28 bg-white border-y border-gray-100">
     <div className="max-w-7xl mx-auto px-4 sm:px-6">
-      <div className="flex items-center justify-between mb-8">
-        <div><h2 className="text-2xl font-bold text-[#0f172a]">Featured Workspaces</h2><p className="text-gray-500 mt-1">Hand-picked spaces with top ratings</p></div>
-      </div>
+      <Reveal className="flex items-end justify-between mb-12">
+        <div>
+          <p className="mb-3 text-xs font-semibold tracking-[0.22em] text-brand-accent uppercase">Curated selection</p>
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.035em] text-gray-900">Featured workspaces</h2>
+        </div>
+      </Reveal>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {workspaces.filter(w => w.featured).map(w => <WorkspaceCard key={w.id} workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} />)}
+        {workspaces.filter(w => w.featured).map((w, i) => (
+          <Reveal key={w.id} delay={(i % 3) + 1}>
+            <WorkspaceCard workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} />
+          </Reveal>
+        ))}
       </div>
     </div>
   </section>
@@ -1005,22 +1094,23 @@ const FeaturedSection = ({ workspaces, onBook, onToggleFav, favorites, onViewDet
 
 // ==================== HOW IT WORKS ====================
 const HowItWorks = () => (
-  <section className="py-16">
+  <section className="py-20 sm:py-28">
     <div className="max-w-7xl mx-auto px-4 sm:px-6">
-      <div className="text-center mb-12">
-        <h2 className="text-2xl font-bold text-[#0f172a]">How WorkSpot Works</h2>
-        <p className="text-gray-500 mt-2">Three simple steps to your perfect workspace</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <Reveal className="text-center mb-16">
+        <p className="mb-3 text-xs font-semibold tracking-[0.22em] text-brand-accent uppercase">The process</p>
+        <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.035em] text-gray-900">How WorkSpot works</h2>
+        <p className="text-gray-500 mt-4 text-lg">Three simple steps to your perfect workspace</p>
+      </Reveal>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
         {[{ icon: "search", title: "Discover", desc: "Browse hundreds of workspaces near you. Filter by price, amenities, and availability." },
           { icon: "calendar", title: "Book", desc: "Reserve by the hour, day, week, or month. Instant confirmation with flexible cancellation." },
           { icon: "building", title: "Work", desc: "Show up and start working. Access WiFi, amenities, and a productive environment." }].map((step, i) => (
-          <div key={i} className="text-center">
-            <div className="w-16 h-16 bg-[#0f172a] rounded-2xl flex items-center justify-center mx-auto mb-4"><I n={step.icon} s={28} c="text-white" /></div>
-            <div className="text-sm font-bold text-[#f59e0b] mb-1">Step {i + 1}</div>
-            <h3 className="text-lg font-bold text-[#0f172a] mb-2">{step.title}</h3>
-            <p className="text-gray-500 text-sm max-w-xs mx-auto">{step.desc}</p>
-          </div>
+          <Reveal key={i} delay={i + 1} className="text-center">
+            <div className="w-16 h-16 bg-brand rounded-2xl flex items-center justify-center mx-auto mb-5"><I n={step.icon} s={28} c="text-white" /></div>
+            <div className="text-sm font-semibold text-brand-accent mb-2">Step {i + 1}</div>
+            <h3 className="font-display text-xl font-semibold tracking-tight text-[#0f172a] mb-2">{step.title}</h3>
+            <p className="text-gray-500 text-sm max-w-xs mx-auto leading-relaxed">{step.desc}</p>
+          </Reveal>
         ))}
       </div>
     </div>
@@ -1050,7 +1140,7 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
             key={value}
             onClick={() => setFilter(value)}
             style={filter === value ? { backgroundColor: '#171717', borderColor: '#171717' } : undefined}
-            className={`whitespace-nowrap rounded-md border px-4 py-2 text-sm transition ${filter === value ? 'font-semibold text-white' : 'font-normal border-gray-200 bg-white text-gray-600 hover:border-brand/30'}`}
+            className={`ws-hover whitespace-nowrap rounded-md border px-4 py-2 text-sm transition-all duration-300 ${filter === value ? 'font-semibold text-white' : 'font-normal border-gray-200 bg-white text-gray-600 hover:border-gray-900/40'}`}
           >
             {label}
           </button>
@@ -1064,9 +1154,9 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
           <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Booking</p><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="check" s={16} c="text-brand" />Instant confirmation</div><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="shield" s={16} c="text-brand" />Verified hosts</div></div>
         </aside>
         <div>
-          <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-2xl font-extrabold tracking-tight text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div>
+          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filtered.map(w => <WorkspaceCard key={w.id} workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} />)}
+            {filtered.map((w, i) => <Reveal key={w.id} delay={(i % 3) + 1}><WorkspaceCard workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} /></Reveal>)}
           </div>
         </div>
       </div>
@@ -1086,7 +1176,7 @@ const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
   ];
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <h2 className="text-2xl font-bold text-[#0f172a] mb-6">My Dashboard</h2>
+      <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">My Dashboard</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map(s => (
           <Card key={s.label} className="p-5">
@@ -1094,7 +1184,7 @@ const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
               <I n={s.icon} s={20} c={`text-${s.color}-500`} />
               <Badge color={s.color}>{s.label}</Badge>
             </div>
-            <div className="text-2xl font-bold text-[#0f172a]">{s.value}</div>
+            <div className="font-display text-2xl font-bold tracking-tight text-gray-900">{s.value}</div>
           </Card>
         ))}
       </div>
@@ -1155,9 +1245,9 @@ const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-card shadow-2xl max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
-          <h3 className="text-lg font-bold flex items-center gap-2">
+          <h3 className="font-display text-lg font-bold tracking-tight flex items-center gap-2">
             <I n="dollar" s={20} /> Withdraw Earnings
           </h3>
           <button onClick={() => { onClose(); setStep(1); setAmount(""); setBankName(""); setAccountNumber(""); setAccountName(""); }} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
@@ -1180,7 +1270,7 @@ const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
                     type="number" 
                     value={amount} 
                     onChange={e => setAmount(e.target.value)}
-                    className="w-full px-4 py-2.5 pl-8 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none text-lg font-semibold"
+                    className="px-4 py-2.5 pl-8 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none text-lg font-semibold"
                     placeholder="0"
                     min="5000"
                     max={balance}
@@ -1228,7 +1318,7 @@ const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name *</label>
-                <select value={bankName} onChange={e => setBankName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" required>
+                <select value={bankName} onChange={e => setBankName(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" required>
                   <option value="">Select your bank</option>
                   {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
@@ -1236,12 +1326,12 @@ const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Account Number *</label>
-                <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="10-digit account number" required maxLength={10} />
+                <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10))} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="10-digit account number" required maxLength={10} />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Account Name *</label>
-                <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="As it appears on your bank account" required />
+                <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="As it appears on your bank account" required />
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -1287,7 +1377,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h2 className="text-2xl font-bold text-[#0f172a]">Owner Dashboard</h2>
+        <h2 className="font-display text-2xl font-bold tracking-[-0.03em] text-gray-900">Owner Dashboard</h2>
         <div className="flex flex-wrap gap-2">
           <Btn v="accent" s="sm" className="rounded-md" onClick={onWithdraw}><I n="dollar" s={16}/> Withdraw</Btn>
           <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
@@ -1320,7 +1410,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
               <I n={s.icon} s={20} c={`text-${s.color}-500`} />
               <Badge color={s.color}>{s.label}</Badge>
             </div>
-            <div className="text-2xl font-bold text-[#0f172a]">{s.value}</div>
+            <div className="font-display text-2xl font-bold tracking-tight text-gray-900">{s.value}</div>
           </Card>
         ))}
       </div>
@@ -1354,14 +1444,14 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h2 className="text-2xl font-bold text-[#0f172a]">My Workspaces</h2>
+        <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">My Workspaces</h2>
         <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
       </div>
       <div className="space-y-4">
         {myWorkspaces.map(w => (
           <Card key={w.id} className="p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <img src={w.image} alt={w.name} className="h-40 w-full rounded-control object-cover sm:h-24 sm:w-24 sm:flex-shrink-0" />
+              <img src={w.image} alt={w.name} className="h-40 rounded-control object-cover sm:h-24 sm:w-24 sm:flex-shrink-0" />
               <div className="flex-1">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -1399,7 +1489,7 @@ const OwnerBookings = ({ bookings }) => {
   const myBookings = bookings;
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <h2 className="text-2xl font-bold text-[#0f172a] mb-6">All Bookings</h2>
+      <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">All Bookings</h2>
       <div className="space-y-3">
         {myBookings.length > 0 ? myBookings.map(b => (
           <Card key={b.id} className="p-4">
@@ -1428,7 +1518,7 @@ const FavoritesView = ({ workspaces, favorites, onBook, onToggleFav, onViewDetai
   const favWorkspaces = workspaces.filter(w => favorites.includes(w.id));
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <h2 className="text-2xl font-bold text-[#0f172a] mb-6">My Favorites</h2>
+      <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">My Favorites</h2>
       {favWorkspaces.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {favWorkspaces.map(w => <WorkspaceCard key={w.id} workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={true} onViewDetails={onViewDetails} />)}
@@ -1447,7 +1537,7 @@ const FavoritesView = ({ workspaces, favorites, onBook, onToggleFav, onViewDetai
 // ==================== MY BOOKINGS ====================
 const MyBookingsView = ({ bookings }) => (
   <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-    <h2 className="text-2xl font-bold text-[#0f172a] mb-6">My Bookings</h2>
+    <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">My Bookings</h2>
     <div className="space-y-3">
       {bookings.map(b => (
         <Card key={b.id} className="p-4">
@@ -1472,45 +1562,45 @@ const MyBookingsView = ({ bookings }) => (
 
 // ==================== FOOTER ====================
 const Footer = () => (
-  <footer className="bg-[#0f172a] text-white py-12" style={{ flexShrink: 0 }}>
+  <footer className="bg-[#0f172a] text-white py-16" style={{ flexShrink: 0 }}>
     <div className="max-w-7xl mx-auto px-4 sm:px-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div>
           <div className="flex items-center gap-2 mb-4">
             <img src="assets/workspot-logo.svg" alt="" className="h-8 w-8" />
-            <span className="text-xl font-bold">WorkSpot</span>
+            <span className="font-display text-xl font-bold tracking-tight">WorkSpot</span>
           </div>
-          <p className="text-gray-400 text-sm">Find and book the perfect workspace near you. Hourly, daily, weekly, or monthly.</p>
+          <p className="text-gray-400 text-sm leading-relaxed">Find and book the perfect workspace near you. Hourly, daily, weekly, or monthly.</p>
         </div>
         <div>
-          <h4 className="font-semibold mb-3">For Users</h4>
-          <ul className="space-y-2 text-sm text-gray-400">
-            <li><a href="#" className="hover:text-white">Find a Space</a></li>
-            <li><a href="#" className="hover:text-white">How it Works</a></li>
-            <li><a href="#" className="hover:text-white">Pricing</a></li>
-            <li><a href="#" className="hover:text-white">Support</a></li>
+          <h4 className="text-xs font-semibold tracking-[0.18em] text-brand-accent uppercase mb-4">For Users</h4>
+          <ul className="space-y-2.5 text-sm text-gray-400">
+            <li><a href="#" className="link-sweep hover:text-white">Find a Space</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">How it Works</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Pricing</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Support</a></li>
           </ul>
         </div>
         <div>
-          <h4 className="font-semibold mb-3">For Owners</h4>
-          <ul className="space-y-2 text-sm text-gray-400">
-            <li><a href="#" className="hover:text-white">List Your Space</a></li>
-            <li><a href="#" className="hover:text-white">Owner Dashboard</a></li>
-            <li><a href="#" className="hover:text-white">Pricing Guide</a></li>
-            <li><a href="#" className="hover:text-white">Resources</a></li>
+          <h4 className="text-xs font-semibold tracking-[0.18em] text-brand-accent uppercase mb-4">For Owners</h4>
+          <ul className="space-y-2.5 text-sm text-gray-400">
+            <li><a href="#" className="link-sweep hover:text-white">List Your Space</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Owner Dashboard</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Pricing Guide</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Resources</a></li>
           </ul>
         </div>
         <div>
-          <h4 className="font-semibold mb-3">Company</h4>
-          <ul className="space-y-2 text-sm text-gray-400">
-            <li><a href="#" className="hover:text-white">About Us</a></li>
-            <li><a href="#" className="hover:text-white">Careers</a></li>
-            <li><a href="#" className="hover:text-white">Blog</a></li>
-            <li><a href="#" className="hover:text-white">Contact</a></li>
+          <h4 className="text-xs font-semibold tracking-[0.18em] text-brand-accent uppercase mb-4">Company</h4>
+          <ul className="space-y-2.5 text-sm text-gray-400">
+            <li><a href="#" className="link-sweep hover:text-white">About Us</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Careers</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Blog</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Contact</a></li>
           </ul>
         </div>
       </div>
-      <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
+      <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm text-gray-500">
         © 2026 WorkSpot. All rights reserved.
       </div>
     </div>
@@ -1696,6 +1786,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#FAFAF8] text-gray-900" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <CustomCursor />
       <Navbar user={user} onLogin={() => setAuthOpen(true)} onLogout={handleLogout} view={view} setView={setView} />
       <main style={{ flex: "1 0 auto" }}>{renderView()}</main>
       <Footer />
