@@ -214,8 +214,13 @@ const AuthModal = ({ open, onClose, onLogin }) => {
     }
   };
 
-  // Render the Google button whenever the modal opens (or mode/role change), once
-  // the target div is in the DOM. Re-running keeps the callback's mode/role fresh.
+  // Keep a ref to the latest handler so the button can render once (not per
+  // mode/role change) while its callback still sees current mode/role.
+  const googleHandlerRef = useRef(handleGoogleLogin);
+  googleHandlerRef.current = handleGoogleLogin;
+
+  // Render the Google button once per open, after the target div mounts.
+  // Depends only on `open` — re-rendering on mode/role caused a visible flicker.
   useEffect(() => {
     if (!open) return;
     const clientId = window.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
@@ -226,10 +231,9 @@ const AuthModal = ({ open, onClose, onLogin }) => {
     // The button div mounts with the modal; wait a tick so it exists.
     const id = setTimeout(() => {
       const target = document.getElementById("google-login-button");
-      if (!target) return;
+      if (!target || target.childElementCount > 0) return;
       try {
-        google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleLogin });
-        target.innerHTML = "";
+        google.accounts.id.initialize({ client_id: clientId, callback: (resp) => googleHandlerRef.current(resp) });
         google.accounts.id.renderButton(target, {
           theme: "outline", size: "large", text: "continue_with",
           shape: "rectangular", logo_alignment: "center", width: 320,
@@ -240,7 +244,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
       }
     }, 0);
     return () => clearTimeout(id);
-  }, [open, mode, role]);
+  }, [open]);
 
   if (!open) return null;
   return (
