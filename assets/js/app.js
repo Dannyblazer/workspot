@@ -258,7 +258,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="bg-white rounded-card shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
         <div className="flex border-b border-gray-100 sticky top-0 bg-white z-10">
           <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "login" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign In</button>
