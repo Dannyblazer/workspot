@@ -295,6 +295,129 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   );
 };
 
+// ==================== OWNER SIGNUP PAGE ====================
+// Dedicated full-page signup for workspace owners (hosts). Seekers still use
+// the AuthModal; this page is reached from the "List your space" nav CTA.
+const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [googleError, setGoogleError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.register(email, password, name || email.split("@")[0], "owner");
+      api.setToken(res.token);
+      onLogin(res.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google's callback hands back a response object; the JWT is response.credential.
+  const handleGoogleLogin = async (response) => {
+    const credential = response && response.credential;
+    if (!credential) { setGoogleError("Google Sign-In failed"); return; }
+    setGoogleError("");
+    setLoading(true);
+    try {
+      const res = await api.loginWithGoogle(credential, "owner");
+      api.setToken(res.token);
+      onLogin(res.user);
+    } catch (err) {
+      setGoogleError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleHandlerRef = useRef(handleGoogleLogin);
+  googleHandlerRef.current = handleGoogleLogin;
+
+  // Render the Google button once the target div mounts.
+  useEffect(() => {
+    const clientId = window.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+    if (typeof google === 'undefined' || !google.accounts) { setGoogleError("Google Sign-In is not available"); return; }
+    const id = setTimeout(() => {
+      const target = document.getElementById("owner-google-button");
+      if (!target || target.childElementCount > 0) return;
+      try {
+        google.accounts.id.initialize({ client_id: clientId, callback: (resp) => googleHandlerRef.current(resp) });
+        google.accounts.id.renderButton(target, {
+          theme: "outline", size: "large", text: "continue_with",
+          shape: "rectangular", logo_alignment: "center", width: 320,
+        });
+      } catch (err) {
+        console.error("Google Identity Services initialization failed:", err);
+        setGoogleError("Google Sign-In is not available");
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
+
+  const benefits = [
+    { icon: "building", title: "List in minutes", text: "Publish your space with photos, pricing and availability in one simple form." },
+    { icon: "calendar", title: "Manage bookings", text: "Track reservations and slot availability from a dedicated owner dashboard." },
+    { icon: "creditCard", title: "Get paid", text: "Receive payouts for every booking, with withdrawals on your schedule." },
+  ];
+
+  return (
+    <div className="min-h-screen bg-brand-soft">
+      <div className="max-w-6xl mx-auto px-4 py-12 lg:py-20 grid lg:grid-cols-2 gap-12 items-center">
+        {/* Left: pitch */}
+        <div>
+          <span className="inline-block text-xs font-semibold uppercase tracking-[0.2em] text-brand-accent mb-4">For workspace owners</span>
+          <h1 className="font-display text-4xl lg:text-6xl font-bold tracking-[-0.03em] leading-[1.05] text-brand">
+            List your space.<br />Earn on your terms.
+          </h1>
+          <p className="mt-5 text-gray-600 text-lg max-w-md">
+            Join WorkSpot as a host and turn your desks, offices and meeting rooms into income.
+          </p>
+          <div className="mt-8 space-y-5">
+            {benefits.map(b => (
+              <div key={b.title} className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-control bg-white flex items-center justify-center shadow-sm shrink-0"><I n={b.icon} s={20} c="text-brand-accent" /></div>
+                <div>
+                  <div className="font-semibold text-brand">{b.title}</div>
+                  <div className="text-sm text-gray-500">{b.text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: signup card */}
+        <div className="bg-white rounded-card shadow-2xl w-full max-w-md justify-self-center lg:justify-self-end p-7">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-brand">Create your host account</h2>
+          <p className="text-sm text-gray-500 mt-1 mb-6">Already have one? <button type="button" onClick={onSwitchToSignin} className="text-brand-accent font-medium hover:underline">Sign in</button></p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="you@example.com" required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="••••••••" required /></div>
+            {error && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+            {googleError && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{googleError}</div>}
+            <Btn v="primary" s="lg" full disabled={loading}>{loading ? "Processing..." : "Create Host Account"}</Btn>
+          </form>
+          <div className="flex items-center gap-3 my-5">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs uppercase tracking-[0.18em] text-gray-400">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+          <div id="owner-google-button" className="flex justify-center min-h-[44px]" />
+          <div className="mt-4 text-center"><button type="button" onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600">Back to home</button></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== BOOKING MODAL ====================
 const BookingModal = ({ workspace, open, onClose, onBook }) => {
   const [bookingType, setBookingType] = useState("daily");
@@ -392,14 +515,42 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
 // ==================== ADD WORKSPACE MODAL ====================
 const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
-  const emptyForm = { name: "", address: "", description: "", website: "", pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
+  const emptyForm = { name: "", address: "", description: "", website: "", images: [], pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
   const [form, setForm] = useState(emptyForm);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [imageError, setImageError] = useState("");
 
   // Reset form when modal opens (bug fix: stale form data between opens)
-  useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); } }, [open]);
+  useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); setImageError(""); } }, [open]);
 
   if (!open) return null;
+
+  const MAX_IMAGES = 6;
+  const MAX_FILE_MB = 3;
+
+  // Read chosen files into base64 data URLs so they travel in the JSON body
+  // (the API client is JSON-only) and render directly as <img src>.
+  const handleImageFiles = (fileList) => {
+    setImageError("");
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const room = MAX_IMAGES - form.images.length;
+    if (room <= 0) { setImageError(`You can add up to ${MAX_IMAGES} images.`); return; }
+    const accepted = [];
+    for (const file of files.slice(0, room)) {
+      if (!file.type.startsWith("image/")) { setImageError("Only image files are allowed."); continue; }
+      if (file.size > MAX_FILE_MB * 1024 * 1024) { setImageError(`Each image must be under ${MAX_FILE_MB}MB.`); continue; }
+      accepted.push(file);
+    }
+    if (files.length > room) setImageError(`Only ${MAX_IMAGES} images allowed — extra files were skipped.`);
+    accepted.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => setForm(prev => (prev.images.length >= MAX_IMAGES ? prev : { ...prev, images: [...prev.images, reader.result] }));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (idx) => setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }));
 
   const toggleAmenity = (amenity) => {
     if (form.amenities.includes(amenity)) {
@@ -424,6 +575,9 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
             address: form.address,
             description: form.description,
             amenities: form.amenities,
+            images: form.images,
+            // Cards / booking modal read the singular `image`; use the first upload.
+            ...(form.images.length ? { image: form.images[0] } : {}),
             pricing: Object.fromEntries(BILLING_TYPES.map(t => [t, Number(form.pricing[t]) || 0])),
             availability: Object.fromEntries(BILLING_TYPES.map(t => [t, { total: Number(form.availability[t].total) || 0 }])),
           });
@@ -433,6 +587,26 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="e.g. The Hive Coworking" required /></div>
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Full address" required /></div>
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none h-20 resize-none" placeholder="Describe your workspace..." /></div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Photos <span className="text-gray-400 font-normal">(up to {MAX_IMAGES}, first is the cover)</span></label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {form.images.map((src, idx) => (
+                  <div key={idx} className="relative aspect-[4/3] rounded-control overflow-hidden border border-gray-200 group">
+                    <img src={src} alt={`Workspace photo ${idx + 1}`} className="w-full h-full object-cover" />
+                    {idx === 0 && <span className="absolute top-1 left-1 bg-brand text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">Cover</span>}
+                    <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"><I n="close" s={12} /></button>
+                  </div>
+                ))}
+                {form.images.length < MAX_IMAGES && (
+                  <label className="aspect-[4/3] rounded-control border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 cursor-pointer hover:border-brand hover:text-brand transition-colors">
+                    <I n="image" s={22} />
+                    <span className="text-xs font-medium">Add photo</span>
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={e => { handleImageFiles(e.target.files); e.target.value = ""; }} />
+                  </label>
+                )}
+              </div>
+              {imageError && <p className="text-xs text-red-600 mt-2">{imageError}</p>}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Pricing (₦)</label>
@@ -1035,6 +1209,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
               </div>
             ) : (
               <div className="flex items-center gap-2">
+                <button onClick={() => setView("owner-signup")} className="hidden sm:inline-block link-sweep text-sm font-medium tracking-tight text-gray-500 hover:text-gray-900 mr-1">List your space</button>
                 <Btn v="ghost" s="sm" onClick={onLogin} className="rounded-md">Sign In</Btn>
                 <Btn v="primary" s="sm" onClick={onLogin} className="rounded-md">Get Started</Btn>
               </div>
@@ -1050,6 +1225,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
               <button onClick={() => { setView("landing"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Find Space</button>
               <button onClick={() => { setView("listings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Listings</button>
               <button onClick={() => { setView("how-it-works"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">How it Works</button>
+              <button onClick={() => { setView("owner-signup"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg text-brand-accent hover:bg-gray-50">List your space</button>
             </>
           ) : user.role === "superadmin" ? (
             <>
@@ -1844,6 +2020,7 @@ const App = () => {
       case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /></>;
       case "listings": return <ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} />;
       case "how-it-works": return <HowItWorks />;
+      case "owner-signup": return <OwnerSignupView onLogin={handleLogin} onCancel={() => setView("landing")} onSwitchToSignin={() => { setView("landing"); setAuthOpen(true); }} />;
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
       case "my-bookings": return <MyBookingsView bookings={bookings} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
