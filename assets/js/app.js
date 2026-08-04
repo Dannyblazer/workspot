@@ -52,10 +52,20 @@ const CustomCursor = () => {
     const onMove = (e) => {
       mx = e.clientX; my = e.clientY;
       dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
+      if (!raf) raf = requestAnimationFrame(tick);
     };
     const tick = () => {
       rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
       ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+      // Stop the loop once the ring has effectively caught up to the pointer.
+      // A permanently-running rAF repaints every frame and, combined with the
+      // modal's backdrop-filter, causes sub-pixel jitter on some GPUs.
+      if (Math.abs(mx - rx) < 0.1 && Math.abs(my - ry) < 0.1) {
+        rx = mx; ry = my;
+        ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+        raf = 0;
+        return;
+      }
       raf = requestAnimationFrame(tick);
     };
     const interactive = "a, button, [role=button], input, select, textarea, label, .ws-hover";
