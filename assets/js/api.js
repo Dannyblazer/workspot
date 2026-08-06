@@ -101,6 +101,9 @@
   async function listBookings() {
     return request('/bookings', { auth: true });
   }
+  async function getBooking(id) {
+    return request('/bookings/' + id, { auth: true });
+  }
 
   // Favorites
   async function listFavorites() {
@@ -145,7 +148,7 @@
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me,
     listWorkspaces, getWorkspace, getReviews, createWorkspace, updateAvailability, updateWorkspaceLocation,
-    createBooking, listBookings,
+    createBooking, listBookings, getBooking,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
     adminStats, adminUsers,
