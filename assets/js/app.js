@@ -2002,7 +2002,7 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
 };
 
 // ==================== OWNER BOOKINGS ====================
-const OwnerBookings = ({ bookings }) => {
+const OwnerBookings = ({ bookings, onViewBooking }) => {
   // /bookings is already scoped to the owner's workspaces by the JWT.
   const myBookings = bookings;
   return (
@@ -2010,7 +2010,7 @@ const OwnerBookings = ({ bookings }) => {
       <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">All Bookings</h2>
       <div className="space-y-3">
         {myBookings.length > 0 ? myBookings.map(b => (
-          <Card key={b.id} className="p-4">
+          <Card key={b.id} className="p-4" hover onClick={() => onViewBooking && onViewBooking(b)}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><I n="user" s={20} c="text-gray-400" /></div>
@@ -2019,9 +2019,12 @@ const OwnerBookings = ({ bookings }) => {
                   <div className="text-sm text-gray-500">{b.workspaceName} • {b.quantity} {b.type} • {b.date}</div>
                 </div>
               </div>
-              <div className="text-left sm:text-right">
-                <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
-                <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="text-left sm:text-right">
+                  <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
+                  <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                </div>
+                <I n="chevronRight" s={18} c="text-gray-300" />
               </div>
             </div>
           </Card>
@@ -2053,12 +2056,12 @@ const FavoritesView = ({ workspaces, favorites, onBook, onToggleFav, onViewDetai
 };
 
 // ==================== MY BOOKINGS ====================
-const MyBookingsView = ({ bookings }) => (
+const MyBookingsView = ({ bookings, onViewBooking }) => (
   <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
     <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">My Bookings</h2>
     <div className="space-y-3">
       {bookings.map(b => (
-        <Card key={b.id} className="p-4">
+        <Card key={b.id} className="p-4" hover onClick={() => onViewBooking && onViewBooking(b)}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center"><I n="briefcase" s={20} c="text-gray-400" /></div>
@@ -2067,9 +2070,12 @@ const MyBookingsView = ({ bookings }) => (
                 <div className="text-sm text-gray-500">{b.quantity} {b.type} • {b.date}</div>
               </div>
             </div>
-            <div className="text-left sm:text-right">
-              <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
-              <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="text-left sm:text-right">
+                <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
+                <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+              </div>
+              <I n="chevronRight" s={18} c="text-gray-300" />
             </div>
           </div>
         </Card>
@@ -2077,6 +2083,128 @@ const MyBookingsView = ({ bookings }) => (
     </div>
   </div>
 );
+
+// ==================== BOOKING DETAILS PAGE ====================
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+const naira = (n) => "₦" + Number(n || 0).toLocaleString();
+
+const DetailRow = ({ icon, label, value }) => (
+  <div className="flex items-start gap-3">
+    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-brand-soft" style={{ backgroundColor: "#F1F1EF" }}><I n={icon} s={16} c="text-brand" /></div>
+    <div className="min-w-0">
+      <div className="text-xs text-gray-400 mb-0.5">{label}</div>
+      <div className="text-sm font-medium text-gray-900 break-words">{value}</div>
+    </div>
+  </div>
+);
+
+const BookingDetailsView = ({ bookingId, initialBooking, onBack }) => {
+  const [booking, setBooking] = useState(initialBooking || null);
+  const [loading, setLoading] = useState(!initialBooking);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!bookingId) return;
+    setLoading(true);
+    api.getBooking(bookingId)
+      .then(b => { if (!cancelled) { setBooking(b); setError(""); } })
+      .catch(e => { if (!cancelled) setError(e.message || "Could not load this booking."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [bookingId]);
+
+  const fmtDate = (d) => {
+    if (!d) return "—";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return d;
+    return dt.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  };
+
+  const statusMap = {
+    confirmed: { color: "green", label: "Confirmed", note: "Your space is reserved." },
+    pending: { color: "amber", label: "Pending", note: "Awaiting confirmation." },
+    cancelled: { color: "red", label: "Cancelled", note: "This booking was cancelled." },
+    completed: { color: "blue", label: "Completed", note: "This booking is complete." },
+  };
+  const st = booking ? (statusMap[booking.status] || { color: "gray", label: cap(booking.status || "Unknown"), note: "" }) : null;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        <button onClick={onBack} className="ws-hover inline-flex items-center gap-2 text-sm text-gray-600 hover:text-brand mb-6">
+          <I n="arrowLeft" s={16} /> Back to bookings
+        </button>
+
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+            <div className="w-8 h-8 border-2 border-gray-200 border-t-gray-900 rounded-full animate-spin mb-4"></div>
+            <p className="text-sm">Loading booking…</p>
+          </div>
+        )}
+
+        {!loading && error && (
+          <Card className="p-8 text-center">
+            <I n="flag" s={40} c="text-red-400 mb-3" />
+            <h3 className="font-display text-lg font-bold text-gray-900 mb-1">Couldn't load booking</h3>
+            <p className="text-sm text-gray-500 mb-5">{error}</p>
+            <Btn v="secondary" s="sm" onClick={onBack}>Go back</Btn>
+          </Card>
+        )}
+
+        {!loading && !error && booking && (
+          <>
+            <Reveal className="mb-6">
+              <Card className="overflow-hidden">
+                <div className="px-6 py-7 text-white bg-brand" style={{ backgroundColor: "#171717" }}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest text-white/60 mb-2">Booking</p>
+                      <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em]">{booking.workspaceName}</h1>
+                      {booking.code && <p className="mt-3 font-mono text-base text-white/80 tracking-wide">{booking.code}</p>}
+                    </div>
+                    <Badge color={st.color}>{st.label}</Badge>
+                  </div>
+                  {st.note && (
+                    <div className="mt-5 flex items-center gap-2 text-sm text-white/70">
+                      <I n="check" s={16} c="text-emerald-400" /><span>{st.note}</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </Reveal>
+
+            <Reveal delay={1} className="mb-6">
+              <Card className="p-6">
+                <h2 className="font-display text-sm font-bold uppercase tracking-widest text-gray-400 mb-5">Details</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <DetailRow icon="calendar" label="Date" value={fmtDate(booking.date)} />
+                  <DetailRow icon="clock" label="Booking type" value={cap(booking.type)} />
+                  <DetailRow icon="briefcase" label="Quantity" value={`${booking.quantity} ${booking.type}${booking.quantity > 1 ? "s" : ""}`} />
+                  <DetailRow icon="user" label="Booked by" value={booking.userName} />
+                </div>
+              </Card>
+            </Reveal>
+
+            <Reveal delay={2}>
+              <Card className="p-6">
+                <h2 className="font-display text-sm font-bold uppercase tracking-widest text-gray-400 mb-5">Payment</h2>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{naira(booking.subtotal)}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>Service fee</span><span>{naira(booking.fee)}</span></div>
+                  <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
+                    <span className="font-semibold text-gray-900">Total paid</span>
+                    <span className="font-display text-xl font-bold text-gray-900">{naira(booking.total)}</span>
+                  </div>
+                </div>
+              </Card>
+            </Reveal>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // ==================== FOOTER ====================
 const Footer = () => (
@@ -2142,6 +2270,8 @@ const App = () => {
   const [favorites, setFavorites] = useState([]);
   const [toast, setToast] = useState(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [bookingReturnView, setBookingReturnView] = useState("my-bookings");
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const [ownerStats, setOwnerStats] = useState(null);
   const [adminData, setAdminData] = useState({ stats: null, users: [] });
@@ -2301,6 +2431,17 @@ const App = () => {
     setView(user ? (user.role === "owner" ? "owner-dashboard" : "discover") : "landing");
   };
 
+  const handleViewBooking = (booking) => {
+    setSelectedBooking(booking);
+    setBookingReturnView(view);
+    setView("booking-details");
+  };
+
+  const handleBackFromBooking = () => {
+    setSelectedBooking(null);
+    setView(bookingReturnView || "my-bookings");
+  };
+
   const renderView = () => {
     switch (view) {
       case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /><Newsletter /></>;
@@ -2308,12 +2449,13 @@ const App = () => {
       case "how-it-works": return <HowItWorks />;
       case "owner-signup": return <OwnerSignupView onLogin={handleLogin} onCancel={() => setView("landing")} onSwitchToSignin={() => { setView("landing"); setAuthOpen(true); }} />;
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
-      case "my-bookings": return <MyBookingsView bookings={bookings} />;
+      case "my-bookings": return <MyBookingsView bookings={bookings} onViewBooking={handleViewBooking} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
       case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={workspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
       case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
-      case "owner-bookings": return <OwnerBookings bookings={bookings} />;
+      case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
+      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} onBack={handleBackFromBooking} />;
       case "superadmin-dashboard": return <SuperAdminDashboard workspaces={workspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }
