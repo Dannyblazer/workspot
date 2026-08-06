@@ -19,8 +19,10 @@
   </script>
   <script>
     // Runtime config (override before api.js loads if needed).
-    window.API_BASE = window.API_BASE || 'https://workspot-backend.onrender.com/api';
+    window.API_BASE = window.API_BASE || 'http://localhost:8080/api';
     window.GOOGLE_CLIENT_ID = window.GOOGLE_CLIENT_ID || '294682814437-d5u6trnt40ijfiq09o9m1ptlj8h4iavk.apps.googleusercontent.com';
+    // Frontend Google Maps JS key (referrer-restricted; safe to expose). Loaded
+    // lazily by loadGoogleMaps() only when an owner opens the add/edit form.
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -85,6 +87,7 @@
   <div id="root"></div>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async></script>
+  <script src="assets/js/config.js"></script>
   <script src="assets/js/api.js"></script>
   <script type="text/babel" src="assets/js/app.js"></script>
 </body>

@@ -59,8 +59,18 @@
   }
 
   // Workspaces
-  async function listWorkspaces() {
-    return request('/workspaces');
+  // opts (optional): { lat, lng, radius } — when lat & lng are provided the
+  // backend filters to within `radius` metres and sorts nearest-first, adding a
+  // `distance` (km) field to each result. No opts → the full unsorted list.
+  async function listWorkspaces(opts = {}) {
+    const { lat, lng, radius } = opts;
+    let path = '/workspaces';
+    if (lat != null && lng != null) {
+      const p = new URLSearchParams({ lat, lng });
+      if (radius != null) p.set('radius', radius);
+      path += '?' + p.toString();
+    }
+    return request(path);
   }
   async function getWorkspace(id) {
     return request('/workspaces/' + id);
@@ -74,6 +84,13 @@
   async function updateAvailability(workspaceId, availability) {
     return request('/workspaces/' + workspaceId + '/availability', {
       method: 'PATCH', auth: true, body: { availability }
+    });
+  }
+  // Update a workspace's location — pass a new address (re-geocoded server-side)
+  // and/or an explicit latitude/longitude pin.
+  async function updateWorkspaceLocation(workspaceId, location) {
+    return request('/workspaces/' + workspaceId + '/location', {
+      method: 'PATCH', auth: true, body: location
     });
   }
 
@@ -127,7 +144,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me,
-    listWorkspaces, getWorkspace, getReviews, createWorkspace, updateAvailability,
+    listWorkspaces, getWorkspace, getReviews, createWorkspace, updateAvailability, updateWorkspaceLocation,
     createBooking, listBookings,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
