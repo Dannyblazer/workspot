@@ -3,3 +3,4 @@ docs/
 backend/
 .vsc*
 .vscode/
+assets/js/config.js

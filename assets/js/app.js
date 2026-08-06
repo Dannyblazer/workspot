@@ -9,6 +9,79 @@ const prefersReducedMotion = () =>
 const isCoarsePointer = () =>
   typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: none), (pointer: coarse)").matches;
 
+// ==================== LOCATION HELPERS ====================
+// Lazily inject the Google Maps JS SDK (Places library) once, so ordinary
+// visitors never pull the billed script — only owners opening the add/edit
+// forms do. Resolves with window.google; rejects if the key is missing or the
+// script fails, letting callers fall back to plain address text (the backend
+// geocodes on submit). Uses the classic places.Autocomplete widget — still
+// supported; migrate to PlaceAutocompleteElement later if needed.
+let _googleMapsPromise = null;
+const loadGoogleMaps = () => {
+  if (typeof window !== "undefined" && window.google && window.google.maps && window.google.maps.places) {
+    return Promise.resolve(window.google);
+  }
+  if (_googleMapsPromise) return _googleMapsPromise;
+  const key = (typeof window !== "undefined" && window.GOOGLE_MAPS_API_KEY) || "";
+  if (!key || key.indexOf("YOUR_") === 0) {
+    return Promise.reject(new Error("Google Maps key not configured"));
+  }
+  _googleMapsPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&loading=async`;
+    s.async = true;
+    s.onload = () => resolve(window.google);
+    s.onerror = () => { _googleMapsPromise = null; reject(new Error("Google Maps failed to load")); };
+    document.head.appendChild(s);
+  });
+  return _googleMapsPromise;
+};
+
+// Google Maps directions deep link from stored coordinates (no backend call).
+const directionsUrl = (w, origin) => {
+  if (!w || w.latitude == null || w.longitude == null) return null;
+  let url = `https://www.google.com/maps/dir/?api=1&destination=${w.latitude},${w.longitude}`;
+  if (origin && origin.lat != null && origin.lng != null) url += `&origin=${origin.lat},${origin.lng}`;
+  return url;
+};
+
+// Attach Google Places Autocomplete to an <input> ref while `active` is true.
+// Fires onPlace({ address, latitude, longitude }) when the owner picks a
+// suggestion. If the Maps key is missing or the script fails, the input stays a
+// plain text field and the backend geocodes the typed address on submit.
+const useAddressAutocomplete = (inputRef, active, onPlace) => {
+  const onPlaceRef = useRef(onPlace);
+  onPlaceRef.current = onPlace;
+  useEffect(() => {
+    if (!active || !inputRef.current) return;
+    let ac = null, listener = null, cancelled = false;
+    loadGoogleMaps().then((google) => {
+      if (cancelled || !inputRef.current) return;
+      ac = new google.maps.places.Autocomplete(inputRef.current, {
+        fields: ["formatted_address", "geometry", "name"],
+      });
+      listener = ac.addListener("place_changed", () => {
+        const place = ac.getPlace();
+        if (!place || !place.geometry || !place.geometry.location) return;
+        onPlaceRef.current({
+          address: place.formatted_address || inputRef.current.value,
+          latitude: place.geometry.location.lat(),
+          longitude: place.geometry.location.lng(),
+        });
+      });
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (listener && listener.remove) listener.remove();
+      if (ac && window.google && window.google.maps && window.google.maps.event) {
+        window.google.maps.event.clearInstanceListeners(ac);
+      }
+      // Drop any leftover autocomplete dropdown so it can't linger after close.
+      document.querySelectorAll(".pac-container").forEach(el => el.remove());
+    };
+  }, [active]);
+};
+
 // <Reveal> — fades + rises its children into view once when scrolled to.
 // Falls back to always-visible when reduced-motion or IntersectionObserver is unavailable.
 const Reveal = ({ children, as = "div", className = "", delay = 0, ...rest }) => {
@@ -139,6 +212,7 @@ const I = ({ n, s = 20, c = "" }) => {
     chevronLeft: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>,
     chevronRight: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>,
     mapPin: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+    navigation: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>,
     message: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
     flag: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
   };
@@ -383,7 +457,7 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
           <div className="mt-8 space-y-5">
             {benefits.map(b => (
               <div key={b.title} className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-control bg-white flex items-center justify-center shadow-sm shrink-0"><I n={b.icon} s={20} c="text-brand-accent" /></div>
+                <div className="w-10 h-10 rounded-control bg-white flex items-center justify-center shadow-sm shrink-0 rounded-md"><I n={b.icon} s={20} c="text-brand-accent" /></div>
                 <div>
                   <div className="font-semibold text-brand">{b.title}</div>
                   <div className="text-sm text-gray-500">{b.text}</div>
@@ -515,13 +589,21 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
 // ==================== ADD WORKSPACE MODAL ====================
 const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
-  const emptyForm = { name: "", address: "", description: "", website: "", images: [], pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
+  const emptyForm = { name: "", address: "", description: "", website: "", images: [], latitude: null, longitude: null, pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
   const [form, setForm] = useState(emptyForm);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [imageError, setImageError] = useState("");
+  const [addError, setAddError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const addressRef = useRef(null);
 
   // Reset form when modal opens (bug fix: stale form data between opens)
-  useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); setImageError(""); } }, [open]);
+  useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); setImageError(""); setAddError(""); setSubmitting(false); } }, [open]);
+
+  // Places Autocomplete on the address field → capture lat/lng (Feature 2).
+  useAddressAutocomplete(addressRef, open, ({ address, latitude, longitude }) =>
+    setForm(prev => ({ ...prev, address, latitude, longitude }))
+  );
 
   if (!open) return null;
 
@@ -567,10 +649,13 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           <h3 className="font-display text-lg font-bold tracking-tight">Add New Workspace</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
         </div>
-        <form onSubmit={e => {
+        <form onSubmit={async e => {
           e.preventDefault();
+          if (submitting) return;
+          setAddError("");
+          setSubmitting(true);
           // owner_id is derived server-side from the JWT; ratings/reviews are derived on read.
-          onAdd({
+          const payload = {
             name: form.name,
             address: form.address,
             description: form.description,
@@ -578,14 +663,24 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
             images: form.images,
             // Cards / booking modal read the singular `image`; use the first upload.
             ...(form.images.length ? { image: form.images[0] } : {}),
+            // Only send coordinates when Autocomplete captured a pin; otherwise the
+            // backend geocodes the typed address.
+            ...(form.latitude != null && form.longitude != null ? { latitude: form.latitude, longitude: form.longitude } : {}),
             pricing: Object.fromEntries(BILLING_TYPES.map(t => [t, Number(form.pricing[t]) || 0])),
             availability: Object.fromEntries(BILLING_TYPES.map(t => [t, { total: Number(form.availability[t].total) || 0 }])),
-          });
-          onClose();
+          };
+          try {
+            const ok = await onAdd(payload);
+            if (ok === false) { setSubmitting(false); setAddError("Couldn't locate that address. Refine it or pick a suggestion, then try again."); return; }
+            onClose();
+          } catch (err) {
+            setSubmitting(false);
+            setAddError(err && err.message ? err.message : "Something went wrong. Please try again.");
+          }
         }} className="p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="e.g. The Hive Coworking" required /></div>
-            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Full address" required /></div>
+            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input ref={addressRef} value={form.address} onChange={e => setForm({...form, address: e.target.value, latitude: null, longitude: null})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Start typing, then pick a suggestion" required />{form.latitude != null && form.longitude != null ? <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><I n="check" s={12} /> Location pinned from map</p> : <p className="text-xs text-gray-400 mt-1">Pick a suggestion to pin the exact spot, or we'll locate the typed address.</p>}</div>
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none h-20 resize-none" placeholder="Describe your workspace..." /></div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Photos <span className="text-gray-400 font-normal">(up to {MAX_IMAGES}, first is the cover)</span></label>
@@ -655,9 +750,10 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
               </div>
             )}
           </div>
+          {addError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{addError}</p>}
           <div className="pt-4 border-t border-gray-100 flex gap-3">
             <Btn v="ghost" onClick={onClose}>Cancel</Btn>
-            <Btn v="primary" className="rounded-md" full>Add Workspace</Btn>
+            <Btn v="primary" className="rounded-md" full disabled={submitting}>{submitting ? "Adding..." : "Add Workspace"}</Btn>
           </div>
         </form>
       </div>
@@ -699,6 +795,70 @@ const EditAvailabilityModal = ({ workspace, open, onClose, onSave }) => {
   );
 };
 
+// ==================== EDIT LOCATION MODAL ====================
+const EditLocationModal = ({ workspace, open, onClose, onSave }) => {
+  const [address, setAddress] = useState("");
+  const [coords, setCoords] = useState({ latitude: null, longitude: null });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const addressRef = useRef(null);
+
+  useEffect(() => {
+    if (open && workspace) {
+      setAddress(workspace.address || "");
+      setCoords({ latitude: workspace.latitude ?? null, longitude: workspace.longitude ?? null });
+      setError("");
+      setSaving(false);
+    }
+  }, [open, workspace]);
+
+  // Autocomplete pins new coordinates when the owner picks a suggestion.
+  useAddressAutocomplete(addressRef, open, ({ address: a, latitude, longitude }) => {
+    setAddress(a);
+    setCoords({ latitude, longitude });
+  });
+
+  if (!open || !workspace) return null;
+
+  const handleSave = async () => {
+    if (saving) return;
+    setError("");
+    setSaving(true);
+    // Send a pin when we have one; otherwise the backend re-geocodes the address.
+    const body = { address, ...(coords.latitude != null && coords.longitude != null ? { latitude: coords.latitude, longitude: coords.longitude } : {}) };
+    try {
+      const ok = await onSave(workspace.id, body);
+      if (ok === false) { setSaving(false); setError("Couldn't locate that address. Refine it or pick a suggestion, then try again."); return; }
+      onClose();
+    } catch (err) {
+      setSaving(false);
+      setError(err && err.message ? err.message : "Something went wrong. Please try again.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-card shadow-2xl max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="font-display text-lg font-bold tracking-tight">Update Location</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><I n="close" s={20} /></button>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">{workspace.name}</p>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+        <input ref={addressRef} value={address} onChange={e => { setAddress(e.target.value); setCoords({ latitude: null, longitude: null }); }} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Start typing, then pick a suggestion" />
+        {coords.latitude != null && coords.longitude != null
+          ? <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><I n="check" s={12} /> Location pinned from map</p>
+          : <p className="text-xs text-gray-400 mt-1">Pick a suggestion to pin the exact spot, or we'll locate the typed address.</p>}
+        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mt-4">{error}</p>}
+        <div className="mt-6 flex gap-3">
+          <Btn v="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn v="primary" full disabled={saving || !address.trim()} onClick={handleSave}>{saving ? "Saving..." : "Save Location"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ==================== WORKSPACE DETAILS PAGE ====================
 const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => {
   const [activeImage, setActiveImage] = useState(0);
@@ -728,7 +888,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
           <img 
             src={workspace.images[activeImage] || workspace.image} 
             alt={workspace.name} 
-            className="h-full object-cover"
+            className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
@@ -774,7 +934,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
                 onClick={() => setActiveImage(idx)}
                 className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${activeImage === idx ? "border-[#f59e0b]" : "border-transparent"}`}
               >
-                <img src={img} alt="" className="h-full object-cover" />
+                <img src={img} alt="" className="w-full h-full object-cover" />
               </button>
             ))}
           </div>
@@ -929,6 +1089,12 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
               </div>
 
               <Btn v="primary" s="lg" className="rounded-md" full onClick={() => onBook(workspace)}>Book Now</Btn>
+
+              {directionsUrl(workspace) && (
+                <button onClick={() => window.open(directionsUrl(workspace), '_blank', 'noopener')} className="ws-hover mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:border-brand hover:text-brand">
+                  <I n="navigation" s={16} /> Directions
+                </button>
+              )}
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-gray-400">
                 <span className="flex items-center gap-1"><I n="check" s={12} c="text-emerald-400" /> Instant</span>
@@ -1282,7 +1448,9 @@ const Hero = ({ onSearch }) => {
 };
 
 // ==================== WORKSPACE CARD ====================
-const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails }) => (
+const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails, origin }) => {
+  const dirUrl = directionsUrl(workspace, origin);
+  return (
   <Card className="group" hover onClick={() => onViewDetails && onViewDetails(workspace)}>
     <div className="relative h-52 overflow-hidden">
       <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover group-hover:scale-[1.07] transition-transform duration-700 ease-out" />
@@ -1297,6 +1465,7 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails })
     <div className="p-5">
       <h3 className="font-display font-semibold tracking-[-0.02em] text-gray-900 text-lg">{workspace.name}</h3>
       <p className="text-sm text-gray-500 mt-1 flex items-center gap-1"><I n="location" s={14} /> {workspace.address}</p>
+      {workspace.distance != null && <p className="text-xs font-semibold text-brand-accent mt-1">{workspace.distance.toFixed(1)} km away</p>}
       <p className="text-sm text-gray-600 mt-2 line-clamp-2">{workspace.description}</p>
       <div className="flex flex-wrap gap-1.5 mt-3">
         {workspace.amenities.slice(0, 4).map(a => <span key={a} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{a}</span>)}
@@ -1307,17 +1476,19 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails })
           <div className="text-xs text-gray-400">From</div>
           <div className="font-display text-xl font-bold tracking-tight text-[#0f172a]">₦{workspace.pricing.hourly.toLocaleString()}<span className="text-sm font-normal text-gray-400">/hr</span></div>
         </div>
-        <div className="flex gap-2">
-          <div className="text-right mr-2">
+        <div className="flex items-center gap-2">
+          <div className="text-right mr-1">
             <div className="text-xs text-gray-400">Daily</div>
             <div className="text-sm font-semibold">₦{workspace.pricing.daily.toLocaleString()}</div>
           </div>
+          {/* {dirUrl && <button onClick={e => { e.stopPropagation(); window.open(dirUrl, '_blank', 'noopener'); }} title="Directions" className="ws-hover flex h-9 items-center justify-center rounded-md border border-gray-200 px-2.5 text-gray-600 transition-all hover:border-brand hover:text-brand"><I n="navigation" s={16} /></button>} */}
           <Btn v="primary" s="sm" className="rounded-md" onClick={e => { e.stopPropagation(); onBook(workspace); }}>Book Now</Btn>
         </div>
       </div>
     </div>
   </Card>
-);
+  );
+};
 
 // ==================== FEATURED SECTION ====================
 const FeaturedSection = ({ workspaces, onBook, onToggleFav, favorites, onViewDetails }) => (
@@ -1370,15 +1541,48 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("rating");
   const [search, setSearch] = useState("");
+  const [radius, setRadius] = useState(25); // km
+  const [nearby, setNearby] = useState(null); // { results, coords: {lat,lng} } | null
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoNotice, setGeoNotice] = useState("");
+
+  const findNearby = () => {
+    if (!navigator.geolocation) { setGeoNotice("Location isn't supported on this device."); return; }
+    setGeoLoading(true);
+    setGeoNotice("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          const results = await api.listWorkspaces({ lat: coords.lat, lng: coords.lng, radius: radius * 1000 });
+          setNearby({ results: Array.isArray(results) ? results : (results.workspaces || []), coords });
+          setSort("distance");
+        } catch (e) {
+          setGeoNotice("Couldn't load nearby spaces. Showing all instead.");
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      () => {
+        setGeoLoading(false);
+        setGeoNotice("Enable location to sort by distance.");
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  const clearNearby = () => { setNearby(null); if (sort === "distance") setSort("rating"); };
+
   const filtered = useMemo(() => {
-    let w = [...workspaces];
+    let w = [...(nearby ? nearby.results : workspaces)];
     if (search) w = w.filter(x => x.name.toLowerCase().includes(search.toLowerCase()) || x.address.toLowerCase().includes(search.toLowerCase()));
     if (filter !== "all") w = w.filter(x => x.amenities.includes(filter));
+    if (sort === "distance") w.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     if (sort === "rating") w.sort((a, b) => b.rating - a.rating);
     if (sort === "price-low") w.sort((a, b) => a.pricing.daily - b.pricing.daily);
     if (sort === "price-high") w.sort((a, b) => b.pricing.daily - a.pricing.daily);
     return w;
-  }, [workspaces, filter, sort, search]);
+  }, [workspaces, nearby, filter, sort, search]);
   return (
     <section className="bg-[#FAFAF8] py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -1402,9 +1606,11 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
           <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Booking</p><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="check" s={16} c="text-brand" />Instant confirmation</div><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="shield" s={16} c="text-brand" />Verified hosts</div></div>
         </aside>
         <div>
-          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option><option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div>
+          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><div className="flex flex-wrap items-center gap-3"><button onClick={findNearby} disabled={geoLoading} className="ws-hover flex items-center gap-2 rounded-button border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition-all hover:border-brand disabled:opacity-50"><I n="mapPin" s={16} />{geoLoading ? 'Locating...' : 'Near me'}</button>{!nearby && <label className="flex items-center gap-2 text-xs text-gray-500">within <select value={radius} onChange={e => setRadius(Number(e.target.value))} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 outline-none focus:border-brand"><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option></select></label>}<label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option>{nearby && <option value="distance">Nearest First</option>}<option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div></div>
+          {geoNotice && <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">{geoNotice}</div>}
+          {nearby && <div className="mb-4 flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3"><span className="text-sm font-medium text-emerald-800">Showing {filtered.length} {filtered.length === 1 ? 'space' : 'spaces'} near you</span><button onClick={clearNearby} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Clear</button></div>}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filtered.map((w, i) => <Reveal key={w.id} delay={(i % 3) + 1}><WorkspaceCard workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} /></Reveal>)}
+            {filtered.map((w, i) => <Reveal key={w.id} delay={(i % 3) + 1}><WorkspaceCard workspace={w} onBook={onBook} onToggleFav={onToggleFav} isFav={favorites.includes(w.id)} onViewDetails={onViewDetails} origin={nearby?.coords} /></Reveal>)}
           </div>
         </div>
       </div>
@@ -1687,7 +1893,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
 };
 
 // ==================== OWNER WORKSPACES ====================
-const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability }) => {
+const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability, onEditLocation }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -1707,6 +1913,7 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
                     <p className="text-sm text-gray-500 mt-0.5">{w.address}</p>
                   </div>
                   <div className="flex gap-2">
+                    <Btn v="secondary" s="sm" onClick={() => onEditLocation(w)}><I n="mapPin" s={14} /> Location</Btn>
                     <Btn v="secondary" s="sm" onClick={() => onEditAvailability(w)}><I n="edit" s={14} /> Availability</Btn>
                   </div>
                 </div>
@@ -1865,6 +2072,8 @@ const App = () => {
   const [addWorkspaceOpen, setAddWorkspaceOpen] = useState(false);
   const [editAvailWorkspace, setEditAvailWorkspace] = useState(null);
   const [editAvailOpen, setEditAvailOpen] = useState(false);
+  const [editLocationWorkspace, setEditLocationWorkspace] = useState(null);
+  const [editLocationOpen, setEditLocationOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -1978,8 +2187,22 @@ const App = () => {
       showToast("Workspace added successfully!");
       await loadWorkspaces();
       if (user?.role === "owner") await refreshOwnerStats();
+      return true;
     } catch (e) {
       showToast(e.message);
+      return false;
+    }
+  };
+
+  const handleUpdateLocation = async (id, body) => {
+    try {
+      await api.updateWorkspaceLocation(id, body);
+      showToast("Location updated!");
+      await loadWorkspaces();
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      return false;
     }
   };
 
@@ -2025,7 +2248,7 @@ const App = () => {
       case "my-bookings": return <MyBookingsView bookings={bookings} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
       case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={workspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
-      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} />;
+      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings bookings={bookings} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
       case "superadmin-dashboard": return <SuperAdminDashboard workspaces={workspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} />;
@@ -2043,6 +2266,7 @@ const App = () => {
       <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
+      <EditLocationModal workspace={editLocationWorkspace} open={editLocationOpen} onClose={() => setEditLocationOpen(false)} onSave={handleUpdateLocation} />
       <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerStats?.balance || 0} onWithdraw={handleWithdraw} />
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-brand text-white px-6 py-3 rounded-card shadow-lift">
