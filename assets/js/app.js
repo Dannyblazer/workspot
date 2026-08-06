@@ -1536,6 +1536,61 @@ const HowItWorks = () => (
   </section>
 );
 
+// ==================== NEWSLETTER ====================
+const Newsletter = () => {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState(""); // "", "success", "error"
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setStatus("loading");
+    // Placeholder — wire to your backend newsletter endpoint when ready
+    setTimeout(() => {
+      setStatus("success");
+      setMessage("You're subscribed! Check your inbox for the best workspaces.");
+      setEmail("");
+      setTimeout(() => { setStatus(""); setMessage(""); }, 4000);
+    }, 800);
+  };
+
+  return (
+    <section className="py-20 sm:py-28 bg-brand-soft">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+        <Reveal className="text-center">
+          <p className="mb-3 text-xs font-semibold tracking-[0.22em] text-brand-accent uppercase">Stay Updated</p>
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.035em] text-gray-900">Get the best workspaces</h2>
+          <p className="text-gray-500 mt-4 text-lg max-w-2xl mx-auto">Join thousands of professionals. Get curated workspace picks, exclusive deals, and productivity tips delivered weekly.</p>
+        </Reveal>
+        <Reveal delay={1} className="mt-10">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+              disabled={status === "loading"}
+              className="flex-1 px-5 py-3.5 rounded-control border border-gray-200 focus:border-brand outline-none text-gray-900 placeholder-gray-400 disabled:opacity-50"
+            />
+            <Btn v="primary" s="lg" className="rounded-control" disabled={status === "loading"}>
+              {status === "loading" ? "Subscribing..." : "Subscribe"}
+            </Btn>
+          </form>
+          {status === "success" && (
+            <div className="mt-4 text-sm font-medium text-emerald-600 text-center">{message}</div>
+          )}
+          {status === "error" && (
+            <div className="mt-4 text-sm font-medium text-red-600 text-center">{message}</div>
+          )}
+          <p className="text-xs text-gray-400 text-center mt-4">We respect your privacy. Unsubscribe anytime.</p>
+        </Reveal>
+      </div>
+    </section>
+  );
+};
+
 // ==================== LISTINGS VIEW ====================
 const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetails }) => {
   const [filter, setFilter] = useState("all");
@@ -2240,7 +2295,7 @@ const App = () => {
 
   const renderView = () => {
     switch (view) {
-      case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /></>;
+      case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /><Newsletter /></>;
       case "listings": return <ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} />;
       case "how-it-works": return <HowItWorks />;
       case "owner-signup": return <OwnerSignupView onLogin={handleLogin} onCancel={() => setView("landing")} onSwitchToSignin={() => { setView("landing"); setAuthOpen(true); }} />;
