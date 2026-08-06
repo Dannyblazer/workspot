@@ -38,10 +38,19 @@
     }
 
     const res = await fetch(API_BASE + path, config);
-    const data = await res.json();
+    const raw = await res.text();
+    let data;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      // Non-JSON body (e.g. a plain-text 404/502 from the server or a proxy).
+      // Surface the server's actual text instead of a cryptic JSON.parse error.
+      if (!res.ok) throw new Error(raw.trim() || ('Request failed (' + res.status + ')'));
+      throw new Error('Unexpected non-JSON response from server');
+    }
 
     if (!res.ok) {
-      throw new Error(data.error || 'Request failed');
+      throw new Error((data && data.error) || ('Request failed (' + res.status + ')'));
     }
     return data;
   }
@@ -104,6 +113,9 @@
   async function getBooking(id) {
     return request('/bookings/' + id, { auth: true });
   }
+  async function validateBookingCode(code) {
+    return request('/bookings/validate/' + encodeURIComponent(code), { method: 'POST', auth: true });
+  }
 
   // Favorites
   async function listFavorites() {
@@ -148,7 +160,7 @@
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me,
     listWorkspaces, getWorkspace, getReviews, createWorkspace, updateAvailability, updateWorkspaceLocation,
-    createBooking, listBookings, getBooking,
+    createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
     adminStats, adminUsers,

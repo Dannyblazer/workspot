@@ -2005,9 +2005,88 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
 const OwnerBookings = ({ bookings, onViewBooking }) => {
   // /bookings is already scoped to the owner's workspaces by the JWT.
   const myBookings = bookings;
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanCode, setScanCode] = useState("");
+  const [scanResult, setScanResult] = useState(null);
+  const [scanError, setScanError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (scanOpen && inputRef.current) inputRef.current.focus();
+  }, [scanOpen]);
+
+  const handleScan = async (e) => {
+    e.preventDefault();
+    if (!scanCode.trim()) return;
+    setScanning(true);
+    setScanError("");
+    setScanResult(null);
+    try {
+      const res = await api.validateBookingCode(scanCode.trim());
+      setScanResult(res);
+      setScanCode("");
+    } catch (err) {
+      setScanError(err.message || "Could not validate code.");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const statusColors = { valid: "green", pending: "amber", expired: "red" };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900 mb-6">All Bookings</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">All Bookings</h2>
+        <Btn v="secondary" s="sm" onClick={() => setScanOpen(!scanOpen)}><I n="search" s={16} />{scanOpen ? "Close Scanner" : "Scan Booking"}</Btn>
+      </div>
+
+      {scanOpen && (
+        <div className="p-5 mb-6 rounded-card border border-gray-200/80" style={{ backgroundColor: "#F1F1EF" }}>
+          <h3 className="font-display text-sm font-bold uppercase tracking-widest text-gray-700 mb-4">Validate Booking Code</h3>
+          <form onSubmit={handleScan} className="flex gap-3 mb-4">
+            <input
+              ref={inputRef}
+              type="text"
+              value={scanCode}
+              onChange={(e) => setScanCode(e.target.value)}
+              placeholder="Enter or scan booking code"
+              className="flex-1 px-4 py-2.5 border border-gray-300 rounded-control focus:outline-none focus:ring-2 focus:ring-brand-accent/50 focus:border-brand"
+              disabled={scanning}
+            />
+            <Btn v="primary" s="md" disabled={scanning || !scanCode.trim()}>{scanning ? "Checking..." : "Validate"}</Btn>
+          </form>
+
+          {scanError && (
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <I n="flag" s={18} c="text-red-500" /><span>{scanError}</span>
+            </div>
+          )}
+
+          {scanResult && (
+            <div className={`p-4 rounded-lg border ${scanResult.status === "valid" ? "bg-emerald-50 border-emerald-200" : scanResult.status === "pending" ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
+              <div className="flex items-center justify-between mb-3">
+                <Badge color={statusColors[scanResult.status] || "gray"}>{cap(scanResult.status)}</Badge>
+                <button onClick={() => setScanResult(null)} className="text-gray-400 hover:text-gray-600"><I n="close" s={16} /></button>
+              </div>
+              {scanResult.booking && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-gray-600">Workspace</span><span className="font-semibold text-gray-900">{scanResult.booking.workspaceName}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Guest</span><span className="font-semibold text-gray-900">{scanResult.booking.userName}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Date</span><span className="font-semibold text-gray-900">{scanResult.booking.date}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Type</span><span className="font-semibold text-gray-900">{scanResult.booking.quantity} {scanResult.booking.type}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Total</span><span className="font-semibold text-gray-900">₦{scanResult.booking.total.toLocaleString()}</span></div>
+                  <div className="pt-3 border-t border-gray-200">
+                    <Btn v="ghost" s="sm" full onClick={() => { onViewBooking && onViewBooking(scanResult.booking, scanResult.status); setScanResult(null); setScanOpen(false); }}>View Full Details</Btn>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {myBookings.length > 0 ? myBookings.map(b => (
           <Card key={b.id} className="p-4" hover onClick={() => onViewBooking && onViewBooking(b)}>
@@ -2098,7 +2177,7 @@ const DetailRow = ({ icon, label, value }) => (
   </div>
 );
 
-const BookingDetailsView = ({ bookingId, initialBooking, onBack }) => {
+const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation }) => {
   const [booking, setBooking] = useState(initialBooking || null);
   const [loading, setLoading] = useState(!initialBooking);
   const [error, setError] = useState("");
@@ -2129,6 +2208,15 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack }) => {
   };
   const st = booking ? (statusMap[booking.status] || { color: "gray", label: cap(booking.status || "Unknown"), note: "" }) : null;
 
+  // Optional entry-eligibility status, passed in when arriving from the owner's
+  // booking-code scanner. Distinct from booking.status (the lifecycle state).
+  const validationMap = {
+    valid: { icon: "check", title: "Valid for entry", note: "This code checks in successfully.", cls: "bg-emerald-50 border-emerald-200", iconC: "text-emerald-600", titleC: "text-emerald-800" },
+    pending: { icon: "clock", title: "Not active yet", note: "This booking isn't valid for entry yet.", cls: "bg-amber-50 border-amber-200", iconC: "text-amber-600", titleC: "text-amber-800" },
+    expired: { icon: "flag", title: "Expired — not valid for entry", note: "This booking's window has passed.", cls: "bg-red-50 border-red-200", iconC: "text-red-600", titleC: "text-red-800" },
+  };
+  const vd = validation ? (validationMap[validation] || { icon: "flag", title: cap(validation), note: "", cls: "bg-gray-50 border-gray-200", iconC: "text-gray-500", titleC: "text-gray-800" }) : null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -2154,6 +2242,18 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack }) => {
 
         {!loading && !error && booking && (
           <>
+            {vd && (
+              <Reveal className="mb-6">
+                <div className={`rounded-card border p-4 flex items-start gap-3 ${vd.cls}`}>
+                  <I n={vd.icon} s={22} c={vd.iconC} />
+                  <div>
+                    <div className={`font-semibold ${vd.titleC}`}>{vd.title}</div>
+                    {vd.note && <div className="text-sm text-gray-600">{vd.note}</div>}
+                    <div className="text-xs text-gray-400 mt-1">Entry check at scan time</div>
+                  </div>
+                </div>
+              </Reveal>
+            )}
             <Reveal className="mb-6">
               <Card className="overflow-hidden">
                 <div className="px-6 py-7 text-white bg-brand" style={{ backgroundColor: "#171717" }}>
@@ -2272,6 +2372,7 @@ const App = () => {
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [bookingReturnView, setBookingReturnView] = useState("my-bookings");
+  const [bookingValidation, setBookingValidation] = useState(null);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const [ownerStats, setOwnerStats] = useState(null);
   const [adminData, setAdminData] = useState({ stats: null, users: [] });
@@ -2431,14 +2532,16 @@ const App = () => {
     setView(user ? (user.role === "owner" ? "owner-dashboard" : "discover") : "landing");
   };
 
-  const handleViewBooking = (booking) => {
+  const handleViewBooking = (booking, validation = null) => {
     setSelectedBooking(booking);
+    setBookingValidation(validation);
     setBookingReturnView(view);
     setView("booking-details");
   };
 
   const handleBackFromBooking = () => {
     setSelectedBooking(null);
+    setBookingValidation(null);
     setView(bookingReturnView || "my-bookings");
   };
 
@@ -2455,7 +2558,7 @@ const App = () => {
       case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
-      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} onBack={handleBackFromBooking} />;
+      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
       case "superadmin-dashboard": return <SuperAdminDashboard workspaces={workspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }
