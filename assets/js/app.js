@@ -1610,8 +1610,16 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         try {
           const results = await api.listWorkspaces({ lat: coords.lat, lng: coords.lng, radius: radius * 1000 });
-          setNearby({ results: Array.isArray(results) ? results : (results.workspaces || []), coords });
-          setSort("distance");
+          const list = Array.isArray(results) ? results : (results.workspaces || []);
+          if (list.length === 0) {
+            // Nothing in range — keep the full list visible rather than an empty grid.
+            setNearby(null);
+            setGeoNotice(`No spaces within ${radius} km of you yet. Showing all spaces — try a wider radius.`);
+          } else {
+            setNearby({ results: list, coords });
+            setGeoNotice("");
+            setSort("distance");
+          }
         } catch (e) {
           setGeoNotice("Couldn't load nearby spaces. Showing all instead.");
         } finally {
@@ -1661,7 +1669,7 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
           <div className="mt-5 border-t border-gray-100 pt-5"><p className="text-xs font-bold uppercase tracking-wide text-gray-500">Booking</p><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="check" s={16} c="text-brand" />Instant confirmation</div><div className="mt-3 flex items-center gap-2 text-sm text-gray-600"><I n="shield" s={16} c="text-brand" />Verified hosts</div></div>
         </aside>
         <div>
-          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><div className="flex flex-wrap items-center gap-3"><button onClick={findNearby} disabled={geoLoading} className="ws-hover flex items-center gap-2 rounded-button border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition-all hover:border-brand disabled:opacity-50"><I n="mapPin" s={16} />{geoLoading ? 'Locating...' : 'Near me'}</button>{!nearby && <label className="flex items-center gap-2 text-xs text-gray-500">within <select value={radius} onChange={e => setRadius(Number(e.target.value))} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 outline-none focus:border-brand"><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option></select></label>}<label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option>{nearby && <option value="distance">Nearest First</option>}<option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div></div>
+          <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">Spaces that fit your day</h2><p className="mt-1 text-sm text-gray-500">{filtered.length} {filtered.length === 1 ? 'workspace' : 'workspaces'} available to book</p></div><div className="flex flex-wrap items-center gap-3"><button onClick={findNearby} disabled={geoLoading} className="ws-hover flex items-center gap-2 rounded-button border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition-all hover:border-brand disabled:opacity-50"><I n="mapPin" s={16} />{geoLoading ? 'Locating...' : 'Near me'}</button>{!nearby && <label className="flex items-center gap-2 text-xs text-gray-500">within <select value={radius} onChange={e => setRadius(Number(e.target.value))} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 outline-none focus:border-brand"><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option><option value="250">250 km</option></select></label>}<label className="flex items-center gap-2 text-sm text-gray-500">Sort by <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-button border border-gray-200 bg-white px-3 py-2 font-semibold text-gray-700 outline-none focus:border-brand"><option value="rating">Recommended</option>{nearby && <option value="distance">Nearest First</option>}<option value="price-low">Price: Low to High</option><option value="price-high">Price: High to Low</option></select></label></div></div>
           {geoNotice && <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">{geoNotice}</div>}
           {nearby && <div className="mb-4 flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3"><span className="text-sm font-medium text-emerald-800">Showing {filtered.length} {filtered.length === 1 ? 'space' : 'spaces'} near you</span><button onClick={clearNearby} className="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Clear</button></div>}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
