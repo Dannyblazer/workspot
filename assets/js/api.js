@@ -2,7 +2,7 @@
 (function(window) {
   'use strict';
 
-  const API_BASE = window.API_BASE || 'https://workspot-backend.onrender.com/api';
+  const API_BASE = window.API_BASE ;
   const TOKEN_KEY = 'workspot_token';
 
   // Token helpers
