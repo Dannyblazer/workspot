@@ -36,6 +36,9 @@
     body { font-family: 'Inter', sans-serif; background: #FAFAF8; overflow-x: hidden; }
     .font-display { font-family: 'Space Grotesk', sans-serif; }
     .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    /* Google Places Autocomplete dropdown must sit above modals (z-50) and the
+       custom cursor overlay (z-9999); it is appended to <body>, not the modal. */
+    .pac-container { z-index: 100000 !important; }
     button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(23, 23, 23, .28); outline-offset: 2px; }
     ::selection { background: #E8D8CA; color: #171717; }
     /* Fallbacks for design tokens used by the external JSX bundle. */

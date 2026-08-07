@@ -18,7 +18,7 @@ const isCoarsePointer = () =>
 // supported; migrate to PlaceAutocompleteElement later if needed.
 let _googleMapsPromise = null;
 const loadGoogleMaps = () => {
-  if (typeof window !== "undefined" && window.google && window.google.maps && window.google.maps.places) {
+  if (typeof window !== "undefined" && window.google && window.google.maps && window.google.maps.places && window.google.maps.places.Autocomplete) {
     return Promise.resolve(window.google);
   }
   if (_googleMapsPromise) return _googleMapsPromise;
@@ -27,10 +27,31 @@ const loadGoogleMaps = () => {
     return Promise.reject(new Error("Google Maps key not configured"));
   }
   _googleMapsPromise = new Promise((resolve, reject) => {
+    // True once the Places library is actually usable (not just window.google).
+    const placesReady = () =>
+      window.google && window.google.maps && window.google.maps.places && window.google.maps.places.Autocomplete;
     const s = document.createElement("script");
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&loading=async`;
     s.async = true;
-    s.onload = () => resolve(window.google);
+    s.onload = () => {
+      // With loading=async the Places library is frequently NOT populated at
+      // onload — resolving here would make `new google.maps.places.Autocomplete`
+      // throw for whichever caller runs first. Wait for it: prefer the sanctioned
+      // importLibrary path, then poll as a fallback, before resolving.
+      const settle = () => {
+        if (placesReady()) { resolve(window.google); return; }
+        let tries = 0;
+        const iv = setInterval(() => {
+          if (placesReady()) { clearInterval(iv); resolve(window.google); }
+          else if (++tries > 60) { clearInterval(iv); _googleMapsPromise = null; reject(new Error("Google Maps Places did not initialize")); }
+        }, 100);
+      };
+      if (window.google && window.google.maps && typeof window.google.maps.importLibrary === "function") {
+        window.google.maps.importLibrary("places").then(settle, settle);
+      } else {
+        settle();
+      }
+    };
     s.onerror = () => { _googleMapsPromise = null; reject(new Error("Google Maps failed to load")); };
     document.head.appendChild(s);
   });
@@ -55,21 +76,26 @@ const useAddressAutocomplete = (inputRef, active, onPlace) => {
   useEffect(() => {
     if (!active || !inputRef.current) return;
     let ac = null, listener = null, cancelled = false;
+    const el = inputRef.current;
     loadGoogleMaps().then((google) => {
       if (cancelled || !inputRef.current) return;
-      ac = new google.maps.places.Autocomplete(inputRef.current, {
+      ac = new google.maps.places.Autocomplete(el, {
         fields: ["formatted_address", "geometry", "name"],
       });
       listener = ac.addListener("place_changed", () => {
         const place = ac.getPlace();
         if (!place || !place.geometry || !place.geometry.location) return;
         onPlaceRef.current({
-          address: place.formatted_address || inputRef.current.value,
+          address: place.formatted_address || el.value,
           latitude: place.geometry.location.lat(),
           longitude: place.geometry.location.lng(),
         });
       });
-    }).catch(() => {});
+    }).catch((err) => {
+      // Plain text field + backend/submit-time geocoding still work; log so a
+      // silent Maps/Places failure is diagnosable instead of invisible.
+      console.warn("[WorkSpot] Address autocomplete unavailable:", err && err.message ? err.message : err);
+    });
     return () => {
       cancelled = true;
       if (listener && listener.remove) listener.remove();
@@ -81,6 +107,23 @@ const useAddressAutocomplete = (inputRef, active, onPlace) => {
     };
   }, [active]);
 };
+
+// Geocode a typed address to coordinates via the Maps JS Geocoder. This backend
+// does NO server-side geocoding (it 503s without lat/lng), so when the owner
+// types an address instead of picking a suggestion, we resolve coords here.
+// Resolves { address, latitude, longitude }; rejects if Maps is unavailable or
+// the address can't be matched.
+const geocodeAddress = (address) =>
+  loadGoogleMaps().then((google) => new Promise((resolve, reject) => {
+    new google.maps.Geocoder().geocode({ address }, (results, status) => {
+      if (status === "OK" && results && results[0] && results[0].geometry) {
+        const loc = results[0].geometry.location;
+        resolve({ address: results[0].formatted_address || address, latitude: loc.lat(), longitude: loc.lng() });
+      } else {
+        reject(new Error("Could not locate that address (" + status + ")"));
+      }
+    });
+  }));
 
 // <Reveal> — fades + rises its children into view once when scrolled to.
 // Falls back to always-visible when reduced-motion or IntersectionObserver is unavailable.
@@ -595,7 +638,30 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
   const [imageError, setImageError] = useState("");
   const [addError, setAddError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [locating, setLocating] = useState(false);
   const addressRef = useRef(null);
+
+  // "Use my current location" — coords come straight from the browser (no Google
+  // key needed); we then best-effort reverse-geocode for a readable address.
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { setAddError("Your browser doesn't support location."); return; }
+    setLocating(true); setAddError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latitude = pos.coords.latitude, longitude = pos.coords.longitude;
+        loadGoogleMaps().then((google) => new Promise((resolve) => {
+          new google.maps.Geocoder().geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+            resolve(status === "OK" && results && results[0] ? results[0].formatted_address : "");
+          });
+        })).catch(() => "").then((address) => {
+          setForm(prev => ({ ...prev, latitude, longitude, address: address || prev.address || `Pinned location (${latitude.toFixed(5)}, ${longitude.toFixed(5)})` }));
+          setLocating(false);
+        });
+      },
+      () => { setLocating(false); setAddError("Couldn't get your location. Allow location access or type the address."); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // Reset form when modal opens (bug fix: stale form data between opens)
   useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); setImageError(""); setAddError(""); setSubmitting(false); } }, [open]);
@@ -654,18 +720,34 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           if (submitting) return;
           setAddError("");
           setSubmitting(true);
+
+          // This backend requires coordinates (no server-side geocoding). If the
+          // owner typed an address without picking a suggestion, resolve coords
+          // client-side now. Block submission if we still can't get them.
+          let lat = form.latitude, lng = form.longitude, addr = form.address;
+          if (lat == null || lng == null) {
+            try {
+              const g = await geocodeAddress(form.address);
+              lat = g.latitude; lng = g.longitude; addr = g.address;
+              setForm(prev => ({ ...prev, address: g.address, latitude: g.latitude, longitude: g.longitude }));
+            } catch (geoErr) {
+              setSubmitting(false);
+              setAddError("We couldn't pin that address on the map. Pick one of the suggestions as you type, or use “Use my current location”.");
+              return;
+            }
+          }
+
           // owner_id is derived server-side from the JWT; ratings/reviews are derived on read.
           const payload = {
             name: form.name,
-            address: form.address,
+            address: addr,
             description: form.description,
             amenities: form.amenities,
             images: form.images,
             // Cards / booking modal read the singular `image`; use the first upload.
             ...(form.images.length ? { image: form.images[0] } : {}),
-            // Only send coordinates when Autocomplete captured a pin; otherwise the
-            // backend geocodes the typed address.
-            ...(form.latitude != null && form.longitude != null ? { latitude: form.latitude, longitude: form.longitude } : {}),
+            latitude: lat,
+            longitude: lng,
             pricing: Object.fromEntries(BILLING_TYPES.map(t => [t, Number(form.pricing[t]) || 0])),
             availability: Object.fromEntries(BILLING_TYPES.map(t => [t, { total: Number(form.availability[t].total) || 0 }])),
           };
@@ -680,7 +762,18 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
         }} className="p-6 space-y-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="e.g. The Hive Coworking" required /></div>
-            <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Address *</label><input ref={addressRef} value={form.address} onChange={e => setForm({...form, address: e.target.value, latitude: null, longitude: null})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Start typing, then pick a suggestion" required />{form.latitude != null && form.longitude != null ? <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><I n="check" s={12} /> Location pinned from map</p> : <p className="text-xs text-gray-400 mt-1">Pick a suggestion to pin the exact spot, or we'll locate the typed address.</p>}</div>
+            <div className="col-span-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">Address *</label>
+                <button type="button" onClick={useMyLocation} disabled={locating} className="ws-hover text-xs font-medium text-brand hover:text-brand-hover inline-flex items-center gap-1 disabled:opacity-50">
+                  <I n="navigation" s={12} /> {locating ? "Locating…" : "Use my current location"}
+                </button>
+              </div>
+              <input ref={addressRef} value={form.address} onChange={e => setForm({...form, address: e.target.value, latitude: null, longitude: null})} autoComplete="off" name="ws-address" onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none w-full" placeholder="Start typing, then pick a suggestion" required />
+              {form.latitude != null && form.longitude != null
+                ? <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><I n="check" s={12} /> Location pinned</p>
+                : <p className="text-xs text-gray-400 mt-1">Pick a suggestion to pin the exact spot — we'll confirm it on the map when you save.</p>}
+            </div>
             <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none h-20 resize-none" placeholder="Describe your workspace..." /></div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Photos <span className="text-gray-400 font-normal">(up to {MAX_IMAGES}, first is the cover)</span></label>
@@ -824,8 +917,23 @@ const EditLocationModal = ({ workspace, open, onClose, onSave }) => {
     if (saving) return;
     setError("");
     setSaving(true);
-    // Send a pin when we have one; otherwise the backend re-geocodes the address.
-    const body = { address, ...(coords.latitude != null && coords.longitude != null ? { latitude: coords.latitude, longitude: coords.longitude } : {}) };
+    // This backend requires coordinates (no server-side geocoding). If the owner
+    // typed an address without picking a suggestion, resolve coords client-side
+    // now and block if we still can't.
+    let lat = coords.latitude, lng = coords.longitude, addr = address;
+    if (lat == null || lng == null) {
+      try {
+        const g = await geocodeAddress(address);
+        lat = g.latitude; lng = g.longitude; addr = g.address;
+        setAddress(g.address);
+        setCoords({ latitude: g.latitude, longitude: g.longitude });
+      } catch (geoErr) {
+        setSaving(false);
+        setError("We couldn't pin that address on the map. Pick one of the suggestions as you type.");
+        return;
+      }
+    }
+    const body = { address: addr, latitude: lat, longitude: lng };
     try {
       const ok = await onSave(workspace.id, body);
       if (ok === false) { setSaving(false); setError("Couldn't locate that address. Refine it or pick a suggestion, then try again."); return; }
