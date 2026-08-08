@@ -289,7 +289,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // or useState(false) if imported
+  const [showPassword, setShowPassword] = useState(false);
 
   // Reset form when modal opens (bug fix: state should reset between sessions)
   useEffect(() => {
