@@ -2718,7 +2718,7 @@ const App = () => {
       <EditLocationModal workspace={editLocationWorkspace} open={editLocationOpen} onClose={() => setEditLocationOpen(false)} onSave={handleUpdateLocation} />
       <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerStats?.balance || 0} onWithdraw={handleWithdraw} />
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-brand text-white px-6 py-3 rounded-card shadow-lift">
+        <div className="fixed bottom-6 right-6 z-50 bg-brand text-white px-6 py-3 rounded-card rounded-md shadow-lift">
           {toast}
         </div>
       )}
