@@ -90,6 +90,12 @@
   async function createWorkspace(workspace) {
     return request('/workspaces', { method: 'POST', auth: true, body: workspace });
   }
+  // Short-lived Cloudinary upload signature so the browser can upload images
+  // directly (see uploadToCloudinary in app.js). Returns { cloud_name, api_key,
+  // timestamp, signature, folder, allowed_formats }.
+  async function getUploadSignature() {
+    return request('/workspaces/uploadsignature', { auth: true });
+  }
   async function updateAvailability(workspaceId, availability) {
     return request('/workspaces/' + workspaceId + '/availability', {
       method: 'PATCH', auth: true, body: { availability }
@@ -159,7 +165,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me,
-    listWorkspaces, getWorkspace, getReviews, createWorkspace, updateAvailability, updateWorkspaceLocation,
+    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspaceLocation,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
