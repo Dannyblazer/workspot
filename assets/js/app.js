@@ -125,6 +125,31 @@ const geocodeAddress = (address) =>
     });
   }));
 
+// Upload a single image straight from the browser to Cloudinary using a
+// short-lived signature minted by our backend (GET /workspaces/uploadsignature).
+// The signature covers a specific set of params (folder, timestamp, ...); we
+// forward every field the backend returned verbatim — except cloud_name (goes
+// in the URL) and api_key/signature (sent explicitly) — so Cloudinary can
+// recompute the exact signature regardless of which params were signed.
+// Resolves the hosted secure_url; rejects with Cloudinary's error message.
+const uploadToCloudinary = async (file, sig) => {
+  const url = `https://api.cloudinary.com/v1_1/${sig.cloud_name}/image/upload`;
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("api_key", sig.api_key);
+  fd.append("signature", sig.signature);
+  Object.keys(sig).forEach((k) => {
+    if (k === "cloud_name" || k === "api_key" || k === "signature") return;
+    fd.append(k, sig[k]);
+  });
+  const res = await fetch(url, { method: "POST", body: fd });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.secure_url) {
+    throw new Error((data && data.error && data.error.message) || "Image upload failed");
+  }
+  return data.secure_url;
+};
+
 // <Reveal> — fades + rises its children into view once when scrolled to.
 // Falls back to always-visible when reduced-motion or IntersectionObserver is unavailable.
 const Reveal = ({ children, as = "div", className = "", delay = 0, ...rest }) => {
@@ -665,13 +690,17 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
 // ==================== ADD WORKSPACE MODAL ====================
 const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
-  const emptyForm = { name: "", address: "", description: "", website: "", images: [], latitude: null, longitude: null, pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
+  const emptyForm = { name: "", address: "", description: "", website: "", latitude: null, longitude: null, pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
   const [form, setForm] = useState(emptyForm);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [imageError, setImageError] = useState("");
   const [addError, setAddError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [locating, setLocating] = useState(false);
+  // Photos upload to Cloudinary from the browser the moment they're picked. Each
+  // entry: { id, file, preview(objectURL), status: 'uploading'|'done'|'error', url, error }.
+  const [photos, setPhotos] = useState([]);
+  const photoIdRef = useRef(0);
   const addressRef = useRef(null);
 
   // "Use my current location" — coords come straight from the browser (no Google
@@ -697,7 +726,12 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
   };
 
   // Reset form when modal opens (bug fix: stale form data between opens)
-  useEffect(() => { if (open) { setForm(emptyForm); setDropdownOpen(false); setImageError(""); setAddError(""); setSubmitting(false); } }, [open]);
+  useEffect(() => {
+    if (open) {
+      setForm(emptyForm); setDropdownOpen(false); setImageError(""); setAddError(""); setSubmitting(false);
+      setPhotos(prev => { prev.forEach(p => p.preview && URL.revokeObjectURL(p.preview)); return []; });
+    }
+  }, [open]);
 
   // Places Autocomplete on the address field → capture lat/lng (Feature 2).
   useAddressAutocomplete(addressRef, open, ({ address, latitude, longitude }) =>
@@ -709,13 +743,24 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
   const MAX_IMAGES = 6;
   const MAX_FILE_MB = 3;
 
-  // Read chosen files into base64 data URLs so they travel in the JSON body
-  // (the API client is JSON-only) and render directly as <img src>.
-  const handleImageFiles = (fileList) => {
+  // Upload one queued photo to Cloudinary and reconcile its status by id (photos
+  // may have been reordered/removed while the request was in flight).
+  const runUpload = async (id, file, sig) => {
+    try {
+      const url = await uploadToCloudinary(file, sig);
+      setPhotos(prev => prev.map(p => p.id === id ? { ...p, status: "done", url } : p));
+    } catch (err) {
+      setPhotos(prev => prev.map(p => p.id === id ? { ...p, status: "error", error: (err && err.message) || "Upload failed" } : p));
+    }
+  };
+
+  // Pick files → validate → show local previews immediately → upload each straight
+  // to Cloudinary (browser-side, signed). One signature covers the whole batch.
+  const handleImageFiles = async (fileList) => {
     setImageError("");
     const files = Array.from(fileList || []);
     if (!files.length) return;
-    const room = MAX_IMAGES - form.images.length;
+    const room = MAX_IMAGES - photos.length;
     if (room <= 0) { setImageError(`You can add up to ${MAX_IMAGES} images.`); return; }
     const accepted = [];
     for (const file of files.slice(0, room)) {
@@ -724,14 +769,47 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
       accepted.push(file);
     }
     if (files.length > room) setImageError(`Only ${MAX_IMAGES} images allowed — extra files were skipped.`);
-    accepted.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => setForm(prev => (prev.images.length >= MAX_IMAGES ? prev : { ...prev, images: [...prev.images, reader.result] }));
-      reader.readAsDataURL(file);
-    });
+    if (!accepted.length) return;
+
+    const queued = accepted.map(file => ({ id: ++photoIdRef.current, file, preview: URL.createObjectURL(file), status: "uploading", url: "", error: "" }));
+    setPhotos(prev => [...prev, ...queued]);
+
+    // Fetch one signature for the batch, then upload each file in parallel.
+    let sig;
+    try {
+      sig = await api.getUploadSignature();
+    } catch (err) {
+      const ids = new Set(queued.map(q => q.id));
+      setPhotos(prev => prev.map(p => ids.has(p.id) ? { ...p, status: "error", error: "Couldn't start upload" } : p));
+      setImageError("Couldn't start the image upload. Check your connection and try again.");
+      return;
+    }
+    queued.forEach(q => runUpload(q.id, q.file, sig));
   };
 
-  const removeImage = (idx) => setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }));
+  // Retry a single failed upload with a fresh signature.
+  const retryUpload = async (id) => {
+    const target = photos.find(p => p.id === id);
+    if (!target) return;
+    setPhotos(prev => prev.map(p => p.id === id ? { ...p, status: "uploading", error: "" } : p));
+    let sig;
+    try {
+      sig = await api.getUploadSignature();
+    } catch (err) {
+      setPhotos(prev => prev.map(p => p.id === id ? { ...p, status: "error", error: "Couldn't start upload" } : p));
+      return;
+    }
+    runUpload(id, target.file, sig);
+  };
+
+  const removeImage = (id) => setPhotos(prev => {
+    const gone = prev.find(p => p.id === id);
+    if (gone && gone.preview) URL.revokeObjectURL(gone.preview);
+    return prev.filter(p => p.id !== id);
+  });
+
+  const uploading = photos.some(p => p.status === "uploading");
+  const doneUrls = photos.filter(p => p.status === "done").map(p => p.url);
 
   const toggleAmenity = (amenity) => {
     if (form.amenities.includes(amenity)) {
@@ -752,6 +830,12 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           e.preventDefault();
           if (submitting) return;
           setAddError("");
+
+          // Block while any image is still uploading to Cloudinary, and surface
+          // failed uploads rather than silently dropping them from the payload.
+          if (uploading) { setAddError("Please wait for your images to finish uploading."); return; }
+          if (photos.some(p => p.status === "error")) { setAddError("Some images failed to upload. Retry or remove them before saving."); return; }
+
           setSubmitting(true);
 
           // This backend requires coordinates (no server-side geocoding). If the
@@ -776,9 +860,9 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
             address: addr,
             description: form.description,
             amenities: form.amenities,
-            images: form.images,
+            images: doneUrls,
             // Cards / booking modal read the singular `image`; use the first upload.
-            ...(form.images.length ? { image: form.images[0] } : {}),
+            ...(doneUrls.length ? { image: doneUrls[0] } : {}),
             latitude: lat,
             longitude: lng,
             pricing: Object.fromEntries(BILLING_TYPES.map(t => [t, Number(form.pricing[t]) || 0])),
@@ -811,14 +895,25 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Photos <span className="text-gray-400 font-normal">(up to {MAX_IMAGES}, first is the cover)</span></label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {form.images.map((src, idx) => (
-                  <div key={idx} className="relative aspect-[4/3] rounded-control overflow-hidden border border-gray-200 group">
-                    <img src={src} alt={`Workspace photo ${idx + 1}`} className="w-full h-full object-cover" />
-                    {idx === 0 && <span className="absolute top-1 left-1 bg-brand text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">Cover</span>}
-                    <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"><I n="close" s={12} /></button>
+                {photos.map((p, idx) => (
+                  <div key={p.id} className="relative aspect-[4/3] rounded-control overflow-hidden border border-gray-200 group">
+                    <img src={p.url || p.preview} alt={`Workspace photo ${idx + 1}`} className="w-full h-full object-cover" />
+                    {idx === 0 && p.status === "done" && <span className="absolute top-1 left-1 bg-brand text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">Cover</span>}
+                    {p.status === "uploading" && (
+                      <div className="absolute inset-0 bg-black/45 flex items-center justify-center">
+                        <div className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+                      </div>
+                    )}
+                    {p.status === "error" && (
+                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1 text-center px-1">
+                        <span className="text-[10px] text-white leading-tight">{p.error || "Upload failed"}</span>
+                        <button type="button" onClick={() => retryUpload(p.id)} className="text-[11px] font-semibold text-white underline underline-offset-2">Retry</button>
+                      </div>
+                    )}
+                    <button type="button" onClick={() => removeImage(p.id)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"><I n="close" s={12} /></button>
                   </div>
                 ))}
-                {form.images.length < MAX_IMAGES && (
+                {photos.length < MAX_IMAGES && (
                   <label className="aspect-[4/3] rounded-control border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 cursor-pointer hover:border-brand hover:text-brand transition-colors">
                     <I n="image" s={22} />
                     <span className="text-xs font-medium">Add photo</span>
@@ -879,7 +974,7 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           {addError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{addError}</p>}
           <div className="pt-4 border-t border-gray-100 flex gap-3">
             <Btn v="ghost" onClick={onClose}>Cancel</Btn>
-            <Btn v="primary" className="rounded-md" full disabled={submitting}>{submitting ? "Adding..." : "Add Workspace"}</Btn>
+            <Btn v="primary" className="rounded-md" full disabled={submitting || uploading}>{submitting ? "Adding..." : uploading ? "Uploading photos…" : "Add Workspace"}</Btn>
           </div>
         </form>
       </div>
