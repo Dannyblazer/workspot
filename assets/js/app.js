@@ -1346,7 +1346,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
 };
 
 // ==================== SUPERADMIN DASHBOARD ====================
-const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => {
+const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApproveWorkspace }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -1355,7 +1355,10 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
   const totalWorkspaces = stats?.totalWorkspaces ?? workspaces.length;
   const totalBookings = stats?.totalBookings ?? bookings.length;
   const totalUsers = stats?.totalUsers ?? users.length;
-  const pendingBookings = stats?.pendingBookings ?? bookings.filter(b => b.status === "pending").length;
+  // Accept the common API naming variants while treating an explicit false
+  // (and null, used by some older records) as awaiting review.
+  const isWorkspaceApproved = (w) => w.is_approved ?? w.isApproved ?? w.approved;
+  const pendingWorkspaces = workspaces.filter(w => isWorkspaceApproved(w) !== true);
   const confirmedBookings = stats?.confirmedBookings ?? bookings.filter(b => b.status === "confirmed").length;
 
   const recentBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
@@ -1378,7 +1381,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
               </div>
               <p className="text-gray-400 text-sm">Manage all workspaces, bookings, and platform analytics</p>
             </div>
-            <Btn v="secondary" s="sm" onClick={onBack}><I n="arrowLeft" s={16} /> Back to Platform</Btn>
+            <Btn v="secondary" s="sm" className="rounded-md" onClick={onBack}><I n="arrowLeft" s={16} /> Back to Platform</Btn>
           </div>
         </div>
       </div>
@@ -1391,9 +1394,9 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
             { label: "Workspaces", value: totalWorkspaces, icon: "building", color: "gray" },
             { label: "Total Bookings", value: totalBookings, icon: "calendar", color: "gray" },
             { label: "Users", value: totalUsers, icon: "users", color: "amber" },
-            { label: "Pending", value: pendingBookings, icon: "clock", color: "red" }
+            { label: "Pending", value: pendingWorkspaces.length, icon: "clock", color: "red", tab: "pending" }
           ].map(s => (
-            <Card key={s.label} className="p-5">
+            <Card key={s.label} className={`p-5 ${s.tab ? "cursor-pointer hover:border-red-200 hover:shadow-md" : ""}`} onClick={s.tab ? () => setActiveTab(s.tab) : undefined}>
               <div className="flex items-center justify-between mb-2">
                 <I n={s.icon} s={20} c={`text-${s.color}-500`} />
                 <Badge color={s.color}>{s.label}</Badge>
@@ -1405,7 +1408,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
 
         {/* Tabs */}
         <div className="flex gap-6 border-b border-gray-200 mb-6">
-          {["overview", "workspaces", "bookings", "users"].map(tab => (
+          {["overview", "pending", "workspaces", "bookings", "users"].map(tab => (
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1512,6 +1515,21 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack }) => 
                 </Card>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeTab === "pending" && (
+          <div className="space-y-3">
+            <h3 className="text-lg font-bold text-slate-900">Pending Workspaces</h3>
+            {pendingWorkspaces.length === 0 ? <Card className="p-8 text-center text-slate-500">No pending workspaces.</Card> : pendingWorkspaces.map(w => (
+              <Card key={w.id} className="p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <img src={w.image} alt={w.name} className="h-20 w-full rounded-lg object-cover sm:w-24" />
+                  <div className="flex-1"><h4 className="font-bold text-slate-900">{w.name}</h4><p className="text-sm text-slate-500">{w.address}</p><Badge color="amber">Pending approval</Badge></div>
+                  <Btn v="success" s="sm" className="rounded-md" onClick={() => onApproveWorkspace(w)}><I n="check" s={15} /> Approve</Btn>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
 
@@ -1845,7 +1863,7 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
       async (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         try {
-          const results = await api.listWorkspaces({ lat: coords.lat, lng: coords.lng, radius: radius * 1000 });
+          const results = await api.listWorkspaces({ lat: coords.lat, lng: coords.lng, radius: radius * 1000, is_approved: true });
           const list = Array.isArray(results) ? results : (results.workspaces || []);
           if (list.length === 0) {
             // Nothing in range — keep the full list visible rather than an empty grid.
@@ -2196,34 +2214,44 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-gray-900">My Workspaces</h2>
-        <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-[-0.04em] text-slate-900">My Workspaces</h2>
+          <p className="mt-1 text-sm sm:text-base text-slate-500">Manage and view all your listed workspaces.</p>
+        </div>
+        <Btn v="primary" s="md" className="rounded-xl px-5 shadow-lg shadow-slate-900/10" onClick={onAddWorkspace}><I n="plus" s={17} /> Add Workspace</Btn>
       </div>
       <div className="space-y-4">
         {myWorkspaces.map(w => (
-          <Card key={w.id} className="p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <img src={w.image} alt={w.name} className="h-40 rounded-control object-cover sm:h-24 sm:w-24 sm:flex-shrink-0" />
-              <div className="flex-1">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="font-bold text-gray-900">{w.name}</h3>
-                    <p className="text-sm text-gray-500 mt-0.5">{w.address}</p>
+          <Card key={w.id} className="border-orange-100 p-4 sm:p-8 shadow-sm">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+              <img src={w.image} alt={w.name} className="h-48 w-full rounded-xl object-cover sm:h-52 lg:h-48 lg:w-56 lg:flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display text-xl font-bold tracking-[-0.03em] text-slate-900">{w.name}</h3>
+                      {w.is_approved ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><I n="check" s={13} /> Approved</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><I n="clock" s={13} /> Pending approval</span>
+                      )}
+                    </div>
+                    <p className="mt-2 flex items-center gap-2 truncate text-sm text-slate-500"><I n="location" s={17} c="text-slate-700" /> {w.address}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Btn v="secondary" s="sm" onClick={() => onEditLocation(w)}><I n="mapPin" s={14} /> Location</Btn>
-                    <Btn v="secondary" s="sm" onClick={() => onEditAvailability(w)}><I n="edit" s={14} /> Availability</Btn>
+                  <div className="flex items-center gap-2">
+                    <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditLocation(w)}><I n="location" s={16} /> Location</Btn>
+                    <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditAvailability(w)}><I n="calendar" s={16} /> Availability</Btn>
+                    <button aria-label="More workspace actions" className="px-2 text-2xl leading-none text-slate-700">⋮</button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {BILLING_TYPES.map(t => {
                     const avail = w.availability[t].total - w.availability[t].booked;
                     return (
-                      <div key={t} className="bg-gray-50 rounded-lg p-2 text-center">
-                        <div className="text-xs text-gray-500 capitalize">{t}</div>
-                        <div className="text-sm font-semibold">₦{w.pricing[t].toLocaleString()}</div>
-                        <div className={`text-xs ${avail > 0 ? "text-emerald-600" : "text-red-500"}`}>{avail} avail</div>
+                      <div key={t} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-orange-50 text-brand-accent"><I n={t === "hourly" ? "clock" : t === "daily" ? "calendar" : t === "weekly" ? "trendUp" : "creditCard"} s={22} /></div>
+                        <div><div className="text-xs capitalize text-slate-500">{t}</div><div className="font-semibold text-slate-900">₦{w.pricing[t].toLocaleString()}</div><div className={`text-xs ${avail > 0 ? "text-emerald-600" : "text-red-500"}`}>{avail} avail</div></div>
                       </div>
                     );
                   })}
@@ -2602,6 +2630,7 @@ const App = () => {
   const [editLocationWorkspace, setEditLocationWorkspace] = useState(null);
   const [editLocationOpen, setEditLocationOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
+  const [managementWorkspaces, setManagementWorkspaces] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [toast, setToast] = useState(null);
@@ -2618,7 +2647,19 @@ const App = () => {
 
   // ---- data loaders ----
   const loadWorkspaces = async () => {
-    try { setWorkspaces(await api.listWorkspaces()); }
+    try { setWorkspaces(await api.listWorkspaces({ is_approved: true })); }
+    catch (e) { showToast(e.message); }
+  };
+  const loadManagementWorkspaces = async () => {
+    try {
+      const [approvedResult, pendingResult] = await Promise.all([
+        api.listWorkspaces({ is_approved: true }),
+        api.listWorkspaces({ is_approved: false })
+      ]);
+      const approved = Array.isArray(approvedResult) ? approvedResult : (approvedResult.workspaces || []);
+      const pending = Array.isArray(pendingResult) ? pendingResult : (pendingResult.workspaces || []);
+      setManagementWorkspaces([...new Map([...approved, ...pending].map(w => [w.id, w])).values()]);
+    }
     catch (e) { showToast(e.message); }
   };
   const refreshBookings = async () => {
@@ -2635,10 +2676,12 @@ const App = () => {
       setBookings(bk);
       setFavorites(favs);
     } catch (e) { /* not fatal */ }
-    if (u.role === "owner") await refreshOwnerStats();
+    if (u.role === "owner") {
+      await Promise.all([refreshOwnerStats(), loadManagementWorkspaces()]);
+    }
     if (u.role === "superadmin") {
       try {
-        const [stats, adminUsers] = await Promise.all([api.adminStats(), api.adminUsers()]);
+        const [stats, adminUsers] = await Promise.all([api.adminStats(), api.adminUsers(), loadManagementWorkspaces()]);
         setAdminData({ stats, users: adminUsers });
       } catch (e) { /* not fatal */ }
     }
@@ -2677,6 +2720,7 @@ const App = () => {
     setBookings([]);
     setFavorites([]);
     setOwnerStats(null);
+    setManagementWorkspaces([]);
     setAdminData({ stats: null, users: [] });
     setView("landing");
     showToast("Signed out successfully");
@@ -2694,7 +2738,7 @@ const App = () => {
       showToast(`Booked ${b.workspaceName} for ${b.quantity} ${b.type}!`);
       // Refetch so availability and booking lists reflect server truth.
       await Promise.all([loadWorkspaces(), refreshBookings()]);
-      if (user?.role === "owner") await refreshOwnerStats();
+      if (user?.role === "owner") await Promise.all([refreshOwnerStats(), loadManagementWorkspaces()]);
     } catch (e) {
       showToast(e.message);
     }
@@ -2715,7 +2759,7 @@ const App = () => {
     try {
       await api.createWorkspace(ws);
       showToast("Workspace added successfully!");
-      await loadWorkspaces();
+      await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]);
       if (user?.role === "owner") await refreshOwnerStats();
       return true;
     } catch (e) {
@@ -2728,7 +2772,7 @@ const App = () => {
     try {
       await api.updateWorkspaceLocation(id, body);
       showToast("Location updated!");
-      await loadWorkspaces();
+      await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]);
       return true;
     } catch (e) {
       showToast(e.message);
@@ -2740,7 +2784,7 @@ const App = () => {
     try {
       await api.updateAvailability(id, avail);
       showToast("Availability updated!");
-      await loadWorkspaces();
+      await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]);
     } catch (e) {
       showToast(e.message);
     }
@@ -2755,6 +2799,16 @@ const App = () => {
     } catch (e) {
       showToast(e.message);
       throw e;
+    }
+  };
+
+  const handleApproveWorkspace = async (workspace) => {
+    try {
+      await api.updateWorkspaceApproval(workspace.id, true);
+      showToast(`${workspace.name} approved!`);
+      await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]);
+    } catch (e) {
+      showToast(e.message);
     }
   };
 
@@ -2790,12 +2844,12 @@ const App = () => {
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
       case "my-bookings": return <MyBookingsView bookings={bookings} onViewBooking={handleViewBooking} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
-      case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={workspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
-      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={workspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
+      case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={managementWorkspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
+      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={managementWorkspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
       case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
-      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={workspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} />;
+      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }
   };

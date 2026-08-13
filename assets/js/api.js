@@ -68,15 +68,19 @@
   }
 
   // Workspaces
-  // opts (optional): { lat, lng, radius } — when lat & lng are provided the
+  // opts (optional): { lat, lng, radius, is_approved } — when lat & lng are provided the
   // backend filters to within `radius` metres and sorts nearest-first, adding a
   // `distance` (km) field to each result. No opts → the full unsorted list.
   async function listWorkspaces(opts = {}) {
-    const { lat, lng, radius } = opts;
+    const { lat, lng, radius, is_approved } = opts;
     let path = '/workspaces';
+    const p = new URLSearchParams();
     if (lat != null && lng != null) {
-      const p = new URLSearchParams({ lat, lng });
+      p.set('lat', lat); p.set('lng', lng);
       if (radius != null) p.set('radius', radius);
+    }
+    if (is_approved != null) p.set('is_approved', String(is_approved));
+    if ([...p.keys()].length) {
       path += '?' + p.toString();
     }
     return request(path);
@@ -106,6 +110,11 @@
   async function updateWorkspaceLocation(workspaceId, location) {
     return request('/workspaces/' + workspaceId + '/location', {
       method: 'PATCH', auth: true, body: location
+    });
+  }
+  async function updateWorkspaceApproval(workspaceId, is_approved) {
+    return request('/workspaces/' + workspaceId + '/approval', {
+      method: 'PATCH', auth: true, body: { is_approved }
     });
   }
 
@@ -165,7 +174,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me,
-    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspaceLocation,
+    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspaceLocation, updateWorkspaceApproval,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
