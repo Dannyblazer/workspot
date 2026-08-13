@@ -1,6 +1,6 @@
 # WorkSpot — Workspace Booking Platform
 
-> A full-stack React application for discovering, booking, and managing shared workspaces across Nigeria.
+> A platform for discovering, booking, and managing shared workspaces across Nigeria.
 
 ---
 
