@@ -33,7 +33,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', sans-serif; background: #FAFAF8; overflow-x: hidden; }
+    body { font-family: 'Inter', sans-serif; background: #FAFAF8; color: #0f172a; overflow-x: hidden; }
+    body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(circle at 12% 5%, rgba(185,104,60,.055), transparent 28%), radial-gradient(circle at 88% 18%, rgba(15,23,42,.035), transparent 24%); }
     .font-display { font-family: 'Space Grotesk', sans-serif; }
     .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     /* Google Places Autocomplete dropdown must sit above modals (z-50) and the
@@ -41,6 +42,9 @@
     .pac-container { z-index: 100000 !important; }
     button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(23, 23, 23, .28); outline-offset: 2px; }
     ::selection { background: #E8D8CA; color: #171717; }
+    input, select, textarea { transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
+    input:hover, select:hover, textarea:hover { border-color: #cbd5e1; }
+    input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 4px rgba(185,104,60,.09); }
     /* Fallbacks for design tokens used by the external JSX bundle. */
     .bg-brand { background-color: #171717 !important; }
     .bg-brand-soft { background-color: #F1F1EF !important; }

@@ -105,6 +105,11 @@
       method: 'PATCH', auth: true, body: { availability }
     });
   }
+  async function updateWorkspacePricing(workspaceId, pricing) {
+    return request('/workspaces/' + workspaceId + '/pricing', {
+      method: 'PATCH', auth: true, body: { pricing }
+    });
+  }
   // Update a workspace's location — pass a new address (re-geocoded server-side)
   // and/or an explicit latitude/longitude pin.
   async function updateWorkspaceLocation(workspaceId, location) {
@@ -174,7 +179,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me,
-    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspaceLocation, updateWorkspaceApproval,
+    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,

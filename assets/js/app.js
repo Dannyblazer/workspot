@@ -1016,6 +1016,28 @@ const EditAvailabilityModal = ({ workspace, open, onClose, onSave }) => {
   );
 };
 
+// ==================== EDIT PRICING MODAL ====================
+const EditPricingModal = ({ workspace, open, onClose, onSave }) => {
+  const [pricing, setPricing] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { if (open && workspace) { setPricing({...workspace.pricing}); setSaving(false); setError(""); } }, [open, workspace]);
+  if (!open || !workspace) return null;
+  const save = async () => {
+    const values = Object.fromEntries(BILLING_TYPES.map(t => [t, Number(pricing[t])]));
+    if (Object.values(values).some(v => !Number.isFinite(v) || v < 0)) { setError("Enter a valid non-negative price for every tier."); return; }
+    setSaving(true); setError("");
+    try { const ok = await onSave(workspace.id, values); if (ok !== false) onClose(); else setSaving(false); }
+    catch (e) { setSaving(false); setError(e.message || "Could not update pricing."); }
+  };
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-card bg-white p-6 shadow-2xl">
+    <div className="mb-6 flex items-center justify-between"><div><h3 className="font-display text-xl font-bold">Update Pricing</h3><p className="mt-1 text-sm text-slate-500">{workspace.name}</p></div><button onClick={onClose} className="text-slate-400"><I n="close" s={20}/></button></div>
+    <div className="grid grid-cols-2 gap-4">{BILLING_TYPES.map(t => <label key={t} className="text-sm font-medium capitalize text-slate-700">{t}<div className="relative mt-1"><span className="absolute left-3 top-2.5 text-slate-400">₦</span><input type="number" min="0" value={pricing[t] ?? ""} onChange={e => setPricing({...pricing, [t]: e.target.value})} className="w-full rounded-xl border border-slate-200 py-2.5 pl-8 pr-3 outline-none" /></div></label>)}</div>
+    {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
+    <div className="mt-6 flex gap-3"><Btn v="ghost" onClick={onClose}>Cancel</Btn><Btn v="primary" full disabled={saving} onClick={save}>{saving ? "Saving..." : "Save Pricing"}</Btn></div>
+  </div></div>;
+};
+
 // ==================== EDIT LOCATION MODAL ====================
 const EditLocationModal = ({ workspace, open, onClose, onSave }) => {
   const [address, setAddress] = useState("");
@@ -1117,7 +1139,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
   const avgRating = workspaceReviews.length > 0 ? (workspaceReviews.reduce((a, b) => a + b.rating, 0) / workspaceReviews.length).toFixed(1) : workspace.rating;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f7f8fa]">
       {/* Image Gallery */}
       <div className="relative bg-gray-900">
         <div className="h-[280px] sm:h-[400px] md:h-[500px] relative overflow-hidden">
@@ -1371,7 +1393,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-[#0f172a] text-white">
+      <div className="bg-gradient-to-br from-[#0b1324] via-[#111c31] to-[#16233b] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center justify-between">
             <div>
@@ -1412,7 +1434,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-semibold capitalize ${activeTab === tab ? "text-brand border-b-2 border-brand" : "text-gray-400 hover:text-gray-600"}`}
+              className={`pb-3 text-sm font-semibold capitalize transition-colors ${activeTab === tab ? "border-b-2 border-brand-accent text-brand" : "text-gray-400 hover:text-gray-900"}`}
             >
               {tab}
             </button>
@@ -1585,12 +1607,12 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
 const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <nav className="sticky top-0 z-40 bg-[#FAFAF8]/80 backdrop-blur-xl border-b border-gray-200/70">
+    <nav className="sticky top-0 z-40 border-b border-slate-200/70 bg-[#FAFAF8]/90 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex h-[72px] items-center justify-between">
           <div className="ws-hover flex items-center gap-2 cursor-pointer" onClick={() => setView("landing")}>
             <img src="assets/workspot-logo.svg" alt="" className="h-9 w-9" />
-            <span className="font-display text-xl font-bold tracking-[-0.03em] text-gray-900">WorkSpot</span>
+            <span className="font-display text-[22px] font-bold tracking-[-0.04em] text-slate-900">WorkSpot</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
             {!user ? (
@@ -1620,7 +1642,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
           <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-brand-soft rounded-full">
+                <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm sm:flex">
                   <div className="w-6 h-6 bg-brand rounded-full flex items-center justify-center"><span className="text-white text-xs font-bold">{user.name[0].toUpperCase()}</span></div>
                   <span className="text-sm font-medium text-gray-700">{user.name}</span>
                   <Badge color={user.role === "superadmin" ? "purple" : user.role === "owner" ? "amber" : "blue"}>{user.role === "superadmin" ? "Admin" : user.role === "owner" ? "Owner" : "User"}</Badge>
@@ -1705,7 +1727,7 @@ const Hero = ({ onSearch }) => {
 const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails, origin }) => {
   const dirUrl = directionsUrl(workspace, origin);
   return (
-  <Card className="group" hover onClick={() => onViewDetails && onViewDetails(workspace)}>
+  <Card className="group rounded-md" hover onClick={() => onViewDetails && onViewDetails(workspace)}>
     <div className="relative h-52 overflow-hidden">
       <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover group-hover:scale-[1.07] transition-transform duration-700 ease-out" />
       {workspace.featured && <div className="absolute top-3 left-3 bg-brand-accent text-white text-[11px] font-semibold tracking-wide px-2.5 py-1 rounded-full">Featured</div>}
@@ -2147,8 +2169,8 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
   ];
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h2 className="font-display text-2xl font-bold tracking-[-0.03em] text-gray-900">Owner Dashboard</h2>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div><p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">Overview</p><h2 className="font-display text-3xl font-bold tracking-[-0.04em] text-slate-900">Owner Dashboard</h2><p className="mt-1 text-sm text-slate-500">Track your spaces, bookings, and earnings.</p></div>
         <div className="flex flex-wrap gap-2">
           <Btn v="accent" s="sm" className="rounded-md" onClick={onWithdraw}><I n="dollar" s={16}/> Withdraw</Btn>
           <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
@@ -2156,7 +2178,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
       </div>
 
       {/* Earnings Summary */}
-      <Card className="p-6 mb-8 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100">
+      <Card className="mb-8 border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-6 shadow-sm sm:p-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center md:text-left">
             <div className="text-sm text-emerald-600 mb-1">Total Revenue</div>
@@ -2210,7 +2232,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
 };
 
 // ==================== OWNER WORKSPACES ====================
-const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability, onEditLocation }) => {
+const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability, onEditPricing, onEditLocation }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -2231,7 +2253,7 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-display text-xl font-bold tracking-[-0.03em] text-slate-900">{w.name}</h3>
-                      {w.is_approved ? (
+                      {w.approved ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><I n="check" s={13} /> Approved</span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><I n="clock" s={13} /> Pending approval</span>
@@ -2241,6 +2263,7 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
                   </div>
                   <div className="flex items-center gap-2">
                     <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditLocation(w)}><I n="location" s={16} /> Location</Btn>
+                    <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditPricing(w)}><I n="dollar" s={16} /> Pricing</Btn>
                     <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditAvailability(w)}><I n="calendar" s={16} /> Availability</Btn>
                     <button aria-label="More workspace actions" className="px-2 text-2xl leading-none text-slate-700">⋮</button>
                   </div>
@@ -2627,6 +2650,8 @@ const App = () => {
   const [addWorkspaceOpen, setAddWorkspaceOpen] = useState(false);
   const [editAvailWorkspace, setEditAvailWorkspace] = useState(null);
   const [editAvailOpen, setEditAvailOpen] = useState(false);
+  const [editPricingWorkspace, setEditPricingWorkspace] = useState(null);
+  const [editPricingOpen, setEditPricingOpen] = useState(false);
   const [editLocationWorkspace, setEditLocationWorkspace] = useState(null);
   const [editLocationOpen, setEditLocationOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
@@ -2790,6 +2815,18 @@ const App = () => {
     }
   };
 
+  const handleSavePricing = async (id, pricing) => {
+    try {
+      await api.updateWorkspacePricing(id, pricing);
+      showToast("Pricing updated!");
+      await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]);
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      return false;
+    }
+  };
+
   const handleWithdraw = async (payload) => {
     try {
       const res = await api.createWithdrawal(payload);
@@ -2845,7 +2882,7 @@ const App = () => {
       case "my-bookings": return <MyBookingsView bookings={bookings} onViewBooking={handleViewBooking} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
       case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={managementWorkspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
-      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={managementWorkspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
+      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={managementWorkspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditPricing={(w) => { setEditPricingWorkspace(w); setEditPricingOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
       case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
@@ -2864,6 +2901,7 @@ const App = () => {
       <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
+      <EditPricingModal workspace={editPricingWorkspace} open={editPricingOpen} onClose={() => setEditPricingOpen(false)} onSave={handleSavePricing} />
       <EditLocationModal workspace={editLocationWorkspace} open={editLocationOpen} onClose={() => setEditLocationOpen(false)} onSave={handleUpdateLocation} />
       <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerStats?.balance || 0} onWithdraw={handleWithdraw} />
       {toast && (
