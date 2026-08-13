@@ -1357,8 +1357,8 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
   const totalUsers = stats?.totalUsers ?? users.length;
   // Accept the common API naming variants while treating an explicit false
   // (and null, used by some older records) as awaiting review.
-  const isWorkspaceApproved = (w) => w.is_approved ?? w.isApproved ?? w.approved;
-  const pendingWorkspaces = workspaces.filter(w => isWorkspaceApproved(w) !== true);
+  
+  const pendingWorkspaces = workspaces.filter(w => w.approved !== true);
   const confirmedBookings = stats?.confirmedBookings ?? bookings.filter(b => b.status === "confirmed").length;
 
   const recentBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
