@@ -1642,11 +1642,11 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
           <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm sm:flex">
+                <button onClick={() => setView("profile")} className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 shadow-sm transition hover:border-slate-300 hover:shadow-md sm:flex">
                   <div className="w-6 h-6 bg-brand rounded-full flex items-center justify-center"><span className="text-white text-xs font-bold">{user.name[0].toUpperCase()}</span></div>
                   <span className="text-sm font-medium text-gray-700">{user.name}</span>
                   <Badge color={user.role === "superadmin" ? "purple" : user.role === "owner" ? "amber" : "blue"}>{user.role === "superadmin" ? "Admin" : user.role === "owner" ? "Owner" : "User"}</Badge>
-                </div>
+                </button>
                 <button onClick={onLogout} className="text-gray-400 hover:text-gray-600 p-2"><I n="logout" s={18} /></button>
               </div>
             ) : (
@@ -1672,18 +1672,21 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
           ) : user.role === "superadmin" ? (
             <>
               <button onClick={() => { setView("superadmin-dashboard"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Admin Dashboard</button>
+              <button onClick={() => { setView("profile"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Profile</button>
             </>
           ) : user.role === "owner" ? (
             <>
               <button onClick={() => { setView("owner-dashboard"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Dashboard</button>
               <button onClick={() => { setView("owner-workspaces"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">My Workspaces</button>
               <button onClick={() => { setView("owner-bookings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Bookings</button>
+              <button onClick={() => { setView("profile"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Profile</button>
             </>
           ) : (
             <>
               <button onClick={() => { setView("discover"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Discover</button>
               <button onClick={() => { setView("my-bookings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">My Bookings</button>
               <button onClick={() => { setView("favorites"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Favorites</button>
+              <button onClick={() => { setView("profile"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Profile</button>
             </>
           )}
         </div>
@@ -1960,6 +1963,56 @@ const ListingsView = ({ workspaces, onBook, onToggleFav, favorites, onViewDetail
 };
 
 // ==================== USER DASHBOARD ====================
+const ProfilePage = ({ user, onEmailUpdated, showToast }) => {
+  const [email, setEmail] = useState(user?.email || "");
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
+
+  useEffect(() => setEmail(user?.email || ""), [user?.email]);
+
+  const saveEmail = async (e) => {
+    e.preventDefault(); setEmailError("");
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setEmailError("Enter a valid email address."); return; }
+    setEmailSaving(true);
+    try {
+      const result = await api.updateEmail(email.trim());
+      const updatedUser = result?.user || {...user, email: email.trim()};
+      onEmailUpdated(updatedUser);
+      showToast("Email address updated!");
+    } catch (err) { setEmailError(err.message); }
+    finally { setEmailSaving(false); }
+  };
+
+  const savePassword = async (e) => {
+    e.preventDefault(); setPasswordError("");
+    if (passwords.next.length < 8) { setPasswordError("New password must be at least 8 characters."); return; }
+    if (passwords.next !== passwords.confirm) { setPasswordError("New passwords do not match."); return; }
+    setPasswordSaving(true);
+    try {
+      await api.updatePassword(passwords.current, passwords.next);
+      setPasswords({ current: "", next: "", confirm: "" });
+      showToast("Password updated successfully!");
+    } catch (err) { setPasswordError(err.message); }
+    finally { setPasswordSaving(false); }
+  };
+
+  const fieldClass = "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-brand-accent";
+  return <section className="min-h-[70vh] py-10 sm:py-14"><div className="mx-auto max-w-5xl px-4 sm:px-6">
+    <div className="mb-8"><p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-brand-accent">Account settings</p><h1 className="font-display text-3xl font-bold tracking-[-0.04em] text-slate-900 sm:text-4xl">Your profile</h1><p className="mt-2 text-slate-500">Manage your account details and security.</p></div>
+    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <Card className="h-fit p-6"><div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-2xl font-bold text-white shadow-lg">{user?.name?.[0]?.toUpperCase()}</div><h2 className="mt-4 font-display text-xl font-bold text-slate-900">{user?.name}</h2><p className="mt-1 break-all text-sm text-slate-500">{user?.email}</p><div className="mt-4"><Badge color={user?.role === "superadmin" ? "purple" : user?.role === "owner" ? "amber" : "blue"}>{user?.role === "superadmin" ? "Administrator" : user?.role}</Badge></div><div className="mt-6 border-t border-slate-100 pt-5 text-xs leading-relaxed text-slate-400">Keep your email current so you can receive booking and account notifications.</div></Card>
+      <div className="space-y-6">
+        <Card className="p-6 sm:p-8"><div className="mb-6"><h2 className="font-display text-xl font-bold text-slate-900">Email address</h2><p className="mt-1 text-sm text-slate-500">Used for signing in and account notifications.</p></div><form onSubmit={saveEmail}><label className="mb-2 block text-sm font-semibold text-slate-700">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} className={fieldClass} autoComplete="email" />{emailError && <p className="mt-3 text-sm text-red-600">{emailError}</p>}<div className="mt-5 flex justify-end"><Btn v="primary" disabled={emailSaving || email.trim() === user?.email}>{emailSaving ? "Saving..." : "Save email"}</Btn></div></form></Card>
+        <Card className="p-6 sm:p-8"><div className="mb-6"><h2 className="font-display text-xl font-bold text-slate-900">Change password</h2><p className="mt-1 text-sm text-slate-500">Use at least 8 characters and avoid reused passwords.</p></div><form onSubmit={savePassword} className="space-y-4">{[["current","Current password"],["next","New password"],["confirm","Confirm new password"]].map(([key,label]) => <label key={key} className="block text-sm font-semibold text-slate-700">{label}<input type={showPasswords ? "text" : "password"} value={passwords[key]} onChange={e => setPasswords({...passwords,[key]:e.target.value})} className={`${fieldClass} mt-2`} autoComplete={key === "current" ? "current-password" : "new-password"} required /></label>)}<label className="flex items-center gap-2 text-sm text-slate-500"><input type="checkbox" checked={showPasswords} onChange={e => setShowPasswords(e.target.checked)} className="rounded border-slate-300" /> Show passwords</label>{passwordError && <p className="text-sm text-red-600">{passwordError}</p>}<div className="flex justify-end pt-1"><Btn v="primary" disabled={passwordSaving || !passwords.current || !passwords.next || !passwords.confirm}>{passwordSaving ? "Updating..." : "Update password"}</Btn></div></form></Card>
+      </div>
+    </div>
+  </div></section>;
+};
+
 const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
   const stats = [
     { label: "Total Bookings", value: bookings.length, icon: "calendar", color: "gray" },
@@ -2886,6 +2939,7 @@ const App = () => {
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
       case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
+      case "profile": return <ProfilePage user={user} onEmailUpdated={setUser} showToast={showToast} />;
       case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }

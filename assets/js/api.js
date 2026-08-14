@@ -66,6 +66,14 @@
     const data = await request('/auth/me', { auth: true });
     return data.user;
   }
+  async function updateEmail(email) {
+    return request('/auth/me', { method: 'PATCH', auth: true, body: { email } });
+  }
+  async function updatePassword(current_password, new_password) {
+    return request('/auth/password', {
+      method: 'PATCH', auth: true, body: { current_password, new_password }
+    });
+  }
 
   // Workspaces
   // opts (optional): { lat, lng, radius, is_approved } — when lat & lng are provided the
@@ -178,7 +186,7 @@
   // Export to window
   window.api = {
     getToken, setToken, clearToken,
-    register, login, loginWithGoogle, me,
+    register, login, loginWithGoogle, me, updateEmail, updatePassword,
     listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
