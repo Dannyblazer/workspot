@@ -1,5 +1,11 @@
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
+const routeFromHash = () => {
+  const parts = (window.location.hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (parts[0] === "workspace" && parts[1]) return { view: "workspace-details", id: parts[1] };
+  return { view: parts[0] || "landing" };
+};
+
 // ==================== MOTION PRIMITIVES ====================
 // True when the user prefers reduced motion; motion features no-op when set.
 const prefersReducedMotion = () =>
@@ -247,6 +253,8 @@ const AMENITIES_LIST = [
   "EV Charging", "Recycling", "Server Room", "Gaming Lounge", "Snacks",
   "Air Conditioning", "Security", "CCTV", "Reception", "Lounge Area", "Whiteboard"
 ];
+const WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const pricedTiers = (workspace) => BILLING_TYPES.filter(t => workspace?.pricing?.[t] != null && workspace.pricing[t] !== "");
 
 // ==================== ICONS ====================
 const I = ({ n, s = 20, c = "" }) => {
@@ -603,7 +611,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
   // Reset state when modal opens (bug fix: state should reset between workspaces)
   useEffect(() => {
     if (open && workspace) {
-      setBookingType("daily");
+      setBookingType(pricedTiers(workspace)[0] || "daily");
       setQuantity(1);
       setDate("2026-07-25");
       setStep(1);
@@ -613,10 +621,10 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
   if (!open || !workspace) return null;
 
   const typeLabels = { hourly: "Hours", daily: "Days", weekly: "Weeks", monthly: "Months" };
-  const total = workspace.pricing[bookingType] * quantity;
+  const total = (workspace.pricing[bookingType] || 0) * quantity;
   const fee = Math.round(total * 0.05);
   const grandTotal = total + fee;
-  const avail = workspace.availability[bookingType].total - workspace.availability[bookingType].booked;
+  const avail = (workspace.availability?.[bookingType]?.total || 0) - (workspace.availability?.[bookingType]?.booked || 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -633,7 +641,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Booking Type</label>
                 <div className="grid grid-cols-4 gap-2">
-                  {BILLING_TYPES.map(t => (
+                  {pricedTiers(workspace).map(t => (
                     <button key={t} onClick={() => { setBookingType(t); setQuantity(1); }} className={`rounded-control border-2 p-2 text-center ${bookingType === t ? "border-brand bg-brand-soft" : "border-gray-200"}`}>
                       <div className={`text-xs font-semibold capitalize ${bookingType === t ? "text-brand" : "text-gray-500"}`}>{t}</div>
                       <div className={`text-xs ${bookingType === t ? "text-brand" : "text-gray-400"}`}>₦{workspace.pricing[t].toLocaleString()}/per {TIER_UNIT[t]}</div>
@@ -690,7 +698,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
 // ==================== ADD WORKSPACE MODAL ====================
 const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
-  const emptyForm = { name: "", address: "", description: "", website: "", latitude: null, longitude: null, pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
+  const emptyForm = { name: "", address: "", description: "", website: "", latitude: null, longitude: null, pricing: { hourly: "", daily: "", weekly: "", monthly: "" }, working_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], opening_time: "08:00", closing_time: "18:00", amenities: [], availability: { hourly: { total: "", booked: 0 }, daily: { total: "", booked: 0 }, weekly: { total: "", booked: 0 }, monthly: { total: "", booked: 0 } } };
   const [form, setForm] = useState(emptyForm);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [imageError, setImageError] = useState("");
@@ -835,6 +843,9 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           // failed uploads rather than silently dropping them from the payload.
           if (uploading) { setAddError("Please wait for your images to finish uploading."); return; }
           if (photos.some(p => p.status === "error")) { setAddError("Some images failed to upload. Retry or remove them before saving."); return; }
+          const pricing = Object.fromEntries(BILLING_TYPES.filter(t => String(form.pricing[t]).trim() !== "").map(t => [t, Number(form.pricing[t])]));
+          if (!Object.keys(pricing).length || Object.values(pricing).some(v => !Number.isFinite(v) || v < 0)) { setAddError("Add at least one valid non-negative pricing tier."); return; }
+          if (!form.working_days.length || form.opening_time >= form.closing_time) { setAddError("Select at least one working day and a closing time later than opening time."); return; }
 
           setSubmitting(true);
 
@@ -865,7 +876,10 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
             ...(doneUrls.length ? { image: doneUrls[0] } : {}),
             latitude: lat,
             longitude: lng,
-            pricing: Object.fromEntries(BILLING_TYPES.map(t => [t, Number(form.pricing[t]) || 0])),
+            pricing,
+            working_days: form.working_days,
+            opening_time: form.opening_time,
+            closing_time: form.closing_time,
             availability: Object.fromEntries(BILLING_TYPES.map(t => [t, { total: Number(form.availability[t].total) || 0 }])),
           };
           try {
@@ -927,8 +941,14 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Pricing (₦)</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="0" required /></div></div>)}
+              {BILLING_TYPES.map(t => <div key={t}><label className="text-xs text-gray-500 capitalize mb-1 block">{t}</label><div className="relative"><span className="absolute left-3 top-2.5 text-gray-400 text-sm">₦</span><input type="number" min="0" value={form.pricing[t]} onChange={e => setForm({...form, pricing: {...form.pricing, [t]: e.target.value}})} className="px-4 py-2.5 pl-7 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="Optional" /></div></div>)}
             </div>
+            <p className="mt-2 text-xs text-gray-400">Add at least one pricing tier. Leave unused tiers blank.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Working days and hours</label>
+            <div className="flex flex-wrap gap-2">{WEEK_DAYS.map(day => <label key={day} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-xs"><input type="checkbox" checked={form.working_days.includes(day)} onChange={() => setForm({...form, working_days: form.working_days.includes(day) ? form.working_days.filter(d => d !== day) : [...form.working_days, day]})} />{day.slice(0, 3)}</label>)}</div>
+            <div className="mt-3 grid grid-cols-2 gap-3"><label className="text-xs text-gray-500">Opening time<input type="time" value={form.opening_time} onChange={e => setForm({...form, opening_time: e.target.value})} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm" required /></label><label className="text-xs text-gray-500">Closing time<input type="time" value={form.closing_time} onChange={e => setForm({...form, closing_time: e.target.value})} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm" required /></label></div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Available Slots</label>
@@ -1016,6 +1036,14 @@ const EditAvailabilityModal = ({ workspace, open, onClose, onSave }) => {
   );
 };
 
+const EditScheduleModal = ({ workspace, open, onClose, onSave }) => {
+  const [days, setDays] = useState([]); const [opening, setOpening] = useState("08:00"); const [closing, setClosing] = useState("18:00"); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  useEffect(() => { if (workspace && open) { setDays(workspace.working_days || workspace.workingDays || WEEK_DAYS.slice(0, 5)); setOpening(workspace.opening_time || workspace.openingTime || "08:00"); setClosing(workspace.closing_time || workspace.closingTime || "18:00"); setError(""); } }, [workspace, open]);
+  if (!open || !workspace) return null;
+  const save = async () => { if (!days.length || opening >= closing) { setError("Select at least one day and make sure closing time is later than opening time."); return; } setSaving(true); try { const ok = await onSave(workspace.id, { working_days: days, opening_time: opening, closing_time: closing }); if (ok !== false) onClose(); else setSaving(false); } catch (e) { setError(e.message); setSaving(false); } };
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-card bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><h3 className="font-display text-xl font-bold">Working hours</h3><p className="mt-1 text-sm text-slate-500">{workspace.name}</p></div><button onClick={onClose}><I n="close" s={20}/></button></div><div className="flex flex-wrap gap-2">{WEEK_DAYS.map(day => <label key={day} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs"><input type="checkbox" checked={days.includes(day)} onChange={() => setDays(days.includes(day) ? days.filter(d => d !== day) : [...days, day])}/>{day.slice(0, 3)}</label>)}</div><div className="mt-4 grid grid-cols-2 gap-3"><label className="text-xs text-slate-500">Opening<input type="time" value={opening} onChange={e => setOpening(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 p-2.5"/></label><label className="text-xs text-slate-500">Closing<input type="time" value={closing} onChange={e => setClosing(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 p-2.5"/></label></div>{error && <p className="mt-3 text-sm text-red-600">{error}</p>}<div className="mt-6 flex gap-3"><Btn v="ghost" onClick={onClose}>Cancel</Btn><Btn v="primary" full disabled={saving} onClick={save}>{saving ? "Saving..." : "Save hours"}</Btn></div></div></div>;
+};
+
 // ==================== EDIT PRICING MODAL ====================
 const EditPricingModal = ({ workspace, open, onClose, onSave }) => {
   const [pricing, setPricing] = useState({});
@@ -1024,15 +1052,15 @@ const EditPricingModal = ({ workspace, open, onClose, onSave }) => {
   useEffect(() => { if (open && workspace) { setPricing({...workspace.pricing}); setSaving(false); setError(""); } }, [open, workspace]);
   if (!open || !workspace) return null;
   const save = async () => {
-    const values = Object.fromEntries(BILLING_TYPES.map(t => [t, Number(pricing[t])]));
-    if (Object.values(values).some(v => !Number.isFinite(v) || v < 0)) { setError("Enter a valid non-negative price for every tier."); return; }
+    const values = Object.fromEntries(BILLING_TYPES.filter(t => String(pricing[t] ?? "").trim() !== "").map(t => [t, Number(pricing[t])]));
+    if (!Object.keys(values).length || Object.values(values).some(v => !Number.isFinite(v) || v < 0)) { setError("Add at least one valid non-negative pricing tier."); return; }
     setSaving(true); setError("");
     try { const ok = await onSave(workspace.id, values); if (ok !== false) onClose(); else setSaving(false); }
     catch (e) { setSaving(false); setError(e.message || "Could not update pricing."); }
   };
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-card bg-white p-6 shadow-2xl">
     <div className="mb-6 flex items-center justify-between"><div><h3 className="font-display text-xl font-bold">Update Pricing</h3><p className="mt-1 text-sm text-slate-500">{workspace.name}</p></div><button onClick={onClose} className="text-slate-400"><I n="close" s={20}/></button></div>
-    <div className="grid grid-cols-2 gap-4">{BILLING_TYPES.map(t => <label key={t} className="text-sm font-medium capitalize text-slate-700">{t}<div className="relative mt-1"><span className="absolute left-3 top-2.5 text-slate-400">₦</span><input type="number" min="0" value={pricing[t] ?? ""} onChange={e => setPricing({...pricing, [t]: e.target.value})} className="w-full rounded-xl border border-slate-200 py-2.5 pl-8 pr-3 outline-none" /></div></label>)}</div>
+    <div className="grid grid-cols-2 gap-4">{BILLING_TYPES.map(t => <label key={t} className="text-sm font-medium capitalize text-slate-700">{t}<div className="relative mt-1"><span className="absolute left-3 top-2.5 text-slate-400">₦</span><input type="number" min="0" value={pricing[t] ?? ""} placeholder="Optional" onChange={e => setPricing({...pricing, [t]: e.target.value})} className="w-full rounded-xl border border-slate-200 py-2.5 pl-8 pr-3 outline-none" /></div></label>)}</div>
     {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}
     <div className="mt-6 flex gap-3"><Btn v="ghost" onClick={onClose}>Cancel</Btn><Btn v="primary" full disabled={saving} onClick={save}>{saving ? "Saving..." : "Save Pricing"}</Btn></div>
   </div></div>;
@@ -1118,7 +1146,7 @@ const EditLocationModal = ({ workspace, open, onClose, onSave }) => {
 };
 
 // ==================== WORKSPACE DETAILS PAGE ====================
-const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => {
+const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, onReport }) => {
   const [activeImage, setActiveImage] = useState(0);
   const [activeTab, setActiveTab] = useState("overview");
   const [workspaceReviews, setWorkspaceReviews] = useState([]);
@@ -1216,6 +1244,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
                   <span className="text-amber-600 text-sm">({workspaceReviews.length || workspace.reviews} reviews)</span>
                 </div>
               </div>
+              <button onClick={() => onReport(workspace)} className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-red-600"><I n="flag" s={14}/> Report this workspace</button>
 
               {/* Tabs */}
               <div className="flex gap-6 border-b border-gray-100 mb-6">
@@ -1236,6 +1265,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
                     <h3 className="font-bold text-lg mb-2">About this space</h3>
                     <p className="text-gray-600 leading-relaxed">{workspace.description}</p>
                   </div>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-4"><h3 className="font-bold text-sm text-slate-900">Working hours</h3><p className="mt-1 text-sm text-slate-600">{(workspace.working_days || workspace.workingDays || []).join(", ") || "Contact the workspace for available days"}</p><p className="mt-1 text-sm font-medium text-slate-900">{workspace.opening_time || workspace.openingTime || "—"} – {workspace.closing_time || workspace.closingTime || "—"}</p></div>
 
                   <div>
                     <h3 className="font-bold text-lg mb-3">Amenities</h3>
@@ -1306,7 +1336,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
               {activeTab === "pricing" && (
                 <div className="space-y-4">
                   <h3 className="font-bold text-lg mb-4">Pricing Plans</h3>
-                  {BILLING_TYPES.map(t => (
+                  {pricedTiers(workspace).map(t => (
                     <div key={t} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <div className="font-medium capitalize">{t} Rate</div>
@@ -1327,22 +1357,22 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
           <div className="lg:col-span-1">
             <div className="bg-white rounded-card p-4 sm:p-6 lg:sticky lg:top-24">
               <div className="text-center mb-6">
-                <div className="font-display text-3xl font-bold tracking-tight text-gray-900">₦{workspace.pricing.hourly.toLocaleString()}</div>
-                <div className="text-gray-400 text-sm">per hour</div>
+                <div className="font-display text-3xl font-bold tracking-tight text-gray-900">₦{workspace.pricing[pricedTiers(workspace)[0]]?.toLocaleString() || "—"}</div>
+                <div className="text-gray-400 text-sm">per {pricedTiers(workspace)[0] || "tier"}</div>
               </div>
 
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Daily rate</span>
-                  <span className="font-medium">₦{workspace.pricing.daily.toLocaleString()}</span>
+                  <span className="font-medium">{workspace.pricing.daily != null ? `₦${workspace.pricing.daily.toLocaleString()}` : "—"}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Weekly rate</span>
-                  <span className="font-medium">₦{workspace.pricing.weekly.toLocaleString()}</span>
+                  <span className="font-medium">{workspace.pricing.weekly != null ? `₦${workspace.pricing.weekly.toLocaleString()}` : "—"}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Monthly rate</span>
-                  <span className="font-medium">₦{workspace.pricing.monthly.toLocaleString()}</span>
+                  <span className="font-medium">{workspace.pricing.monthly != null ? `₦${workspace.pricing.monthly.toLocaleString()}` : "—"}</span>
                 </div>
               </div>
 
@@ -1367,10 +1397,24 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav }) => 
   );
 };
 
+const ReportWorkspaceModal = ({ workspace, open, onClose, onSubmit }) => {
+  const [reason, setReason] = useState("inaccurate_listing"); const [details, setDetails] = useState(""); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  useEffect(() => { if (open) { setReason("inaccurate_listing"); setDetails(""); setError(""); } }, [open]);
+  if (!open || !workspace) return null;
+  const submit = async () => { if (details.trim().length < 10) { setError("Please add a short explanation."); return; } setSaving(true); try { const ok = await onSubmit(workspace.id, reason, details.trim()); if (ok !== false) onClose(); else setSaving(false); } catch (e) { setError(e.message); setSaving(false); } };
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-card bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><h3 className="font-display text-xl font-bold">Report workspace</h3><p className="mt-1 text-sm text-slate-500">{workspace.name}</p></div><button onClick={onClose}><I n="close" s={20}/></button></div><label className="text-sm font-medium text-slate-700">Reason<select value={reason} onChange={e => setReason(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 p-3"><option value="inaccurate_listing">Inaccurate listing</option><option value="unsafe">Safety concern</option><option value="fraud">Possible fraud</option><option value="closed">Workspace is closed</option><option value="other">Other</option></select></label><label className="mt-4 block text-sm font-medium text-slate-700">Details<textarea value={details} onChange={e => setDetails(e.target.value)} className="mt-2 h-28 w-full resize-none rounded-xl border border-slate-200 p-3" placeholder="Tell us what happened..."/></label>{error && <p className="mt-3 text-sm text-red-600">{error}</p>}<div className="mt-6 flex gap-3"><Btn v="ghost" onClick={onClose}>Cancel</Btn><Btn v="danger" full disabled={saving} onClick={submit}>{saving ? "Sending..." : "Submit report"}</Btn></div></div></div>;
+};
+
 // ==================== SUPERADMIN DASHBOARD ====================
-const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApproveWorkspace }) => {
+const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApproveWorkspace, onSuspendWorkspace }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
+  const ownerById = useMemo(() => new Map(users.map(u => [String(u.id), u])), [users]);
+  const workspaceOwner = (workspace) => ownerById.get(String(workspace.ownerId ?? workspace.owner_id));
+  const ownerLabel = (workspace) => {
+    const owner = workspaceOwner(workspace);
+    return owner ? (owner.name || owner.email) : (workspace.ownerName || workspace.ownerEmail || `User ${workspace.ownerId ?? workspace.owner_id ?? "unknown"}`);
+  };
 
   // Platform totals come from the server; fall back to client-derived if absent.
   const totalRevenue = stats?.totalRevenue ?? bookings.reduce((a, b) => a + b.total, 0);
@@ -1380,15 +1424,19 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
   // Accept the common API naming variants while treating an explicit false
   // (and null, used by some older records) as awaiting review.
   
-  const pendingWorkspaces = workspaces.filter(w => w.approved !== true);
+  const pendingWorkspaces = workspaces.filter(w => (w.approved ?? w.is_approved ?? w.isApproved) !== true);
   const confirmedBookings = stats?.confirmedBookings ?? bookings.filter(b => b.status === "confirmed").length;
 
   const recentBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
 
-  const filteredWorkspaces = workspaces.filter(w => 
-    w.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    w.address.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredWorkspaces = workspaces.filter(w => {
+    const term = searchTerm.toLowerCase();
+    const owner = workspaceOwner(w);
+    return w.name.toLowerCase().includes(term) ||
+      w.address.toLowerCase().includes(term) ||
+      (owner?.name || "").toLowerCase().includes(term) ||
+      (owner?.email || "").toLowerCase().includes(term);
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1436,7 +1484,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
               onClick={() => setActiveTab(tab)}
               className={`pb-3 text-sm font-semibold capitalize transition-colors ${activeTab === tab ? "border-b-2 border-brand-accent text-brand" : "text-gray-400 hover:text-gray-900"}`}
             >
-              {tab}
+              {tab}{tab === "pending" && pendingWorkspaces.length > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">{pendingWorkspaces.length}</span>}
             </button>
           ))}
         </div>
@@ -1525,10 +1573,11 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
                         <div className="flex items-center gap-2">
                           {w.featured && <Badge color="amber">Featured</Badge>}
                           <Badge color={w.rating >= 4.5 ? "green" : "gray"}>{w.rating} ★</Badge>
+                          <Btn v="danger" s="sm" onClick={() => onSuspendWorkspace(w)}>{w.suspended ? "Unsuspend" : "Suspend"}</Btn>
                         </div>
                       </div>
                       <div className="flex gap-4 mt-2 text-sm text-gray-500">
-                        <span>Owner: {w.ownerId}</span>
+                        <span title={workspaceOwner(w)?.email || ""}>Owner: {ownerLabel(w)}</span>
                         <span>Bookings: {bookings.filter(b => b.workspaceId === w.id).length}</span>
                         <span>Revenue: ₦{bookings.filter(b => b.workspaceId === w.id).reduce((a, b) => a + b.total, 0).toLocaleString()}</span>
                       </div>
@@ -1753,12 +1802,12 @@ const WorkspaceCard = ({ workspace, onBook, onToggleFav, isFav, onViewDetails, o
       <div className="flex items-end justify-between mt-4 pt-3 border-t border-gray-100">
         <div>
           <div className="text-xs text-gray-400">From</div>
-          <div className="font-display text-xl font-bold tracking-tight text-[#0f172a]">₦{workspace.pricing.hourly.toLocaleString()}<span className="text-sm font-normal text-gray-400">/hr</span></div>
+          <div className="font-display text-xl font-bold tracking-tight text-[#0f172a]">₦{workspace.pricing[pricedTiers(workspace)[0]]?.toLocaleString() || "—"}<span className="text-sm font-normal text-gray-400">/{TIER_UNIT[pricedTiers(workspace)[0]] || "tier"}</span></div>
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right mr-1">
             <div className="text-xs text-gray-400">Daily</div>
-            <div className="text-sm font-semibold">₦{workspace.pricing.daily.toLocaleString()}</div>
+            <div className="text-sm font-semibold">{workspace.pricing.daily != null ? `₦${workspace.pricing.daily.toLocaleString()}` : "—"}</div>
           </div>
           {/* {dirUrl && <button onClick={e => { e.stopPropagation(); window.open(dirUrl, '_blank', 'noopener'); }} title="Directions" className="ws-hover flex h-9 items-center justify-center rounded-md border border-gray-200 px-2.5 text-gray-600 transition-all hover:border-brand hover:text-brand"><I n="navigation" s={16} /></button>} */}
           <Btn v="primary" s="sm" className="rounded-md" onClick={e => { e.stopPropagation(); onBook(workspace); }}>Book Now</Btn>
@@ -2207,15 +2256,19 @@ const WithdrawalModal = ({ open, onClose, balance, onWithdraw }) => {
 // ==================== OWNER DASHBOARD ====================
 const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, onWithdraw }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
+  const [locationFilter, setLocationFilter] = useState("all");
+  const locations = [...new Set(myWorkspaces.map(w => (w.address || "").split(",").slice(-2).join(",").trim()).filter(Boolean))];
+  const filteredWorkspaces = locationFilter === "all" ? myWorkspaces : myWorkspaces.filter(w => (w.address || "").includes(locationFilter));
+  const filteredIds = new Set(filteredWorkspaces.map(w => w.id));
+  const myBookings = bookings.filter(b => filteredIds.has(b.workspaceId));
   // bookings from /bookings are already owner-scoped by the JWT.
-  const myBookings = bookings;
   // Money/occupancy come from the server (single source of truth).
-  const revenue = stats?.revenue ?? 0;
+  const revenue = locationFilter === "all" ? (stats?.revenue ?? 0) : myBookings.reduce((sum, b) => sum + (Number(b.total) || 0), 0);
   const withdrawn = stats?.withdrawn ?? 0;
   const balance = stats?.balance ?? 0;
   const occupancy = stats?.occupancy ?? "—";  // already includes % sign from server
   const summaryStats = [
-    { label: "My Workspaces", value: myWorkspaces.length, icon: "building", color: "gray" },
+    { label: "My Workspaces", value: filteredWorkspaces.length, icon: "building", color: "gray" },
     { label: "Total Bookings", value: myBookings.length, icon: "calendar", color: "green" },
     { label: "Revenue", value: "₦" + revenue.toLocaleString(), icon: "dollar", color: "amber" },
     { label: "Occupancy", value: occupancy, icon: "trendUp", color: "amber" }
@@ -2229,6 +2282,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
           <Btn v="primary" s="sm" className="rounded-md" onClick={onAddWorkspace}><I n="plus" s={16} /> Add Workspace</Btn>
         </div>
       </div>
+      <div className="mb-6 flex flex-wrap items-center gap-3"><label className="text-sm font-medium text-slate-600">Filter by location</label><select value={locationFilter} onChange={e => setLocationFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none"><option value="all">All locations</option>{locations.map(location => <option key={location} value={location}>{location}</option>)}</select>{locationFilter !== "all" && <span className="text-xs text-slate-400">Showing {filteredWorkspaces.length} spaces and {myBookings.length} bookings</span>}</div>
 
       {/* Earnings Summary */}
       <Card className="mb-8 border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-6 shadow-sm sm:p-8">
@@ -2285,7 +2339,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
 };
 
 // ==================== OWNER WORKSPACES ====================
-const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability, onEditPricing, onEditLocation }) => {
+const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailability, onEditPricing, onEditSchedule, onEditLocation }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -2306,24 +2360,26 @@ const OwnerWorkspaces = ({ ownerId, workspaces, onAddWorkspace, onEditAvailabili
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-display text-xl font-bold tracking-[-0.03em] text-slate-900">{w.name}</h3>
-                      {w.approved ? (
+                      {(w.approved ?? w.is_approved ?? w.isApproved) ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><I n="check" s={13} /> Approved</span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"><I n="clock" s={13} /> Pending approval</span>
                       )}
                     </div>
                     <p className="mt-2 flex items-center gap-2 truncate text-sm text-slate-500"><I n="location" s={17} c="text-slate-700" /> {w.address}</p>
+                    <p className="mt-2 flex items-center gap-2 text-xs text-slate-400"><I n="clock" s={14} /> {(w.working_days || w.workingDays || []).join(", ") || "No working days set"} · {w.opening_time || w.openingTime || "—"}–{w.closing_time || w.closingTime || "—"}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditLocation(w)}><I n="location" s={16} /> Location</Btn>
                     <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditPricing(w)}><I n="dollar" s={16} /> Pricing</Btn>
+                    <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditSchedule(w)}><I n="clock" s={16} /> Hours</Btn>
                     <Btn v="secondary" s="sm" className="rounded-xl" onClick={() => onEditAvailability(w)}><I n="calendar" s={16} /> Availability</Btn>
                     <button aria-label="More workspace actions" className="px-2 text-2xl leading-none text-slate-700">⋮</button>
                   </div>
                 </div>
                 <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {BILLING_TYPES.map(t => {
-                    const avail = w.availability[t].total - w.availability[t].booked;
+                  {pricedTiers(w).map(t => {
+                    const avail = (w.availability?.[t]?.total || 0) - (w.availability?.[t]?.booked || 0);
                     return (
                       <div key={t} className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
                         <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-orange-50 text-brand-accent"><I n={t === "hourly" ? "clock" : t === "daily" ? "calendar" : t === "weekly" ? "trendUp" : "creditCard"} s={22} /></div>
@@ -2696,7 +2752,7 @@ const Footer = () => (
 // ==================== MAIN APP ====================
 const App = () => {
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("landing");
+  const [view, setView] = useState(() => routeFromHash().view);
   const [authOpen, setAuthOpen] = useState(false);
   const [bookingWorkspace, setBookingWorkspace] = useState(null);
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -2705,6 +2761,8 @@ const App = () => {
   const [editAvailOpen, setEditAvailOpen] = useState(false);
   const [editPricingWorkspace, setEditPricingWorkspace] = useState(null);
   const [editPricingOpen, setEditPricingOpen] = useState(false);
+  const [editScheduleWorkspace, setEditScheduleWorkspace] = useState(null);
+  const [editScheduleOpen, setEditScheduleOpen] = useState(false);
   const [editLocationWorkspace, setEditLocationWorkspace] = useState(null);
   const [editLocationOpen, setEditLocationOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
@@ -2713,6 +2771,7 @@ const App = () => {
   const [favorites, setFavorites] = useState([]);
   const [toast, setToast] = useState(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
+  const [reportWorkspace, setReportWorkspace] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [bookingReturnView, setBookingReturnView] = useState("my-bookings");
   const [bookingValidation, setBookingValidation] = useState(null);
@@ -2721,11 +2780,36 @@ const App = () => {
   const [adminData, setAdminData] = useState({ stats: null, users: [] });
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const onHashChange = () => {
+      const route = routeFromHash();
+      setView(route.view);
+      if (route.id) setSelectedWorkspace(workspaces.find(w => String(w.id) === String(route.id)) || null);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [workspaces]);
+
+  useEffect(() => {
+    const route = routeFromHash();
+    if (route.id && workspaces.length) setSelectedWorkspace(workspaces.find(w => String(w.id) === String(route.id)) || null);
+  }, [workspaces]);
+
+  useEffect(() => {
+    if (view === "workspace-details" && selectedWorkspace) {
+      const target = `#/workspace/${selectedWorkspace.id}`;
+      if (window.location.hash !== target) window.history.replaceState(null, "", target);
+    } else if (view !== "workspace-details") {
+      const target = `#/${view}`;
+      if (window.location.hash !== target) window.history.replaceState(null, "", target);
+    }
+  }, [view, selectedWorkspace]);
+
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   // ---- data loaders ----
   const loadWorkspaces = async () => {
-    try { setWorkspaces(await api.listWorkspaces({ is_approved: true })); }
+    try { const result = await api.listWorkspaces({ is_approved: true }); const list = Array.isArray(result) ? result : (result.workspaces || []); setWorkspaces(list.filter(w => !w.suspended)); }
     catch (e) { showToast(e.message); }
   };
   const loadManagementWorkspaces = async () => {
@@ -2769,6 +2853,8 @@ const App = () => {
   useEffect(() => {
     (async () => {
       await loadWorkspaces();
+      const initialRoute = routeFromHash();
+      if (initialRoute.id) setSelectedWorkspace((current) => workspaces.find(w => String(w.id) === String(initialRoute.id)) || current);
       if (api.getToken()) {
         try {
           const u = await api.me();
@@ -2879,6 +2965,10 @@ const App = () => {
       return false;
     }
   };
+  const handleSaveSchedule = async (id, schedule) => {
+    try { await api.updateWorkspaceSchedule(id, schedule); showToast("Working hours updated!"); await loadManagementWorkspaces(); await loadWorkspaces(); return true; }
+    catch (e) { showToast(e.message); return false; }
+  };
 
   const handleWithdraw = async (payload) => {
     try {
@@ -2901,9 +2991,20 @@ const App = () => {
       showToast(e.message);
     }
   };
+  const handleSuspendWorkspace = async (workspace) => {
+    const next = !workspace.suspended;
+    try { await api.suspendWorkspace(workspace.id, next); showToast(`${workspace.name} ${next ? "suspended" : "reinstated"}.`); await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]); }
+    catch (e) { showToast(e.message); }
+  };
+  const handleReportWorkspace = async (id, reason, details) => {
+    if (!user) { setAuthOpen(true); return false; }
+    try { await api.reportWorkspace(id, reason, details); showToast("Report submitted. Thank you."); return true; }
+    catch (e) { showToast(e.message); return false; }
+  };
 
   const handleViewDetails = (ws) => {
     setSelectedWorkspace(ws);
+    window.history.pushState(null, "", `#/workspace/${ws.id}`);
     setView("workspace-details");
   };
 
@@ -2935,12 +3036,12 @@ const App = () => {
       case "my-bookings": return <MyBookingsView bookings={bookings} onViewBooking={handleViewBooking} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
       case "owner-dashboard": return <OwnerDashboard ownerId={user?.id} workspaces={managementWorkspaces} bookings={bookings} stats={ownerStats} onAddWorkspace={() => setAddWorkspaceOpen(true)} onWithdraw={() => setWithdrawalOpen(true)} />;
-      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={managementWorkspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditPricing={(w) => { setEditPricingWorkspace(w); setEditPricingOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
+      case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={managementWorkspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditPricing={(w) => { setEditPricingWorkspace(w); setEditPricingOpen(true); }} onEditSchedule={(w) => { setEditScheduleWorkspace(w); setEditScheduleOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
-      case "workspace-details": return <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} />;
+      case "workspace-details": return selectedWorkspace ? <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} onReport={(w) => user ? setReportWorkspace(w) : setAuthOpen(true)} /> : <div className="py-24 text-center text-slate-500">Loading workspace...</div>;
       case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
       case "profile": return <ProfilePage user={user} onEmailUpdated={setUser} showToast={showToast} />;
-      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} />;
+      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} onSuspendWorkspace={handleSuspendWorkspace} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }
   };
@@ -2956,8 +3057,10 @@ const App = () => {
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
       <EditPricingModal workspace={editPricingWorkspace} open={editPricingOpen} onClose={() => setEditPricingOpen(false)} onSave={handleSavePricing} />
+      <EditScheduleModal workspace={editScheduleWorkspace} open={editScheduleOpen} onClose={() => setEditScheduleOpen(false)} onSave={handleSaveSchedule} />
       <EditLocationModal workspace={editLocationWorkspace} open={editLocationOpen} onClose={() => setEditLocationOpen(false)} onSave={handleUpdateLocation} />
       <WithdrawalModal open={withdrawalOpen} onClose={() => setWithdrawalOpen(false)} balance={ownerStats?.balance || 0} onWithdraw={handleWithdraw} />
+      <ReportWorkspaceModal workspace={reportWorkspace} open={!!reportWorkspace} onClose={() => setReportWorkspace(null)} onSubmit={handleReportWorkspace} />
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-brand text-white px-6 py-3 rounded-card rounded-md shadow-lift">
           {toast}
