@@ -136,8 +136,8 @@
   async function suspendWorkspace(workspaceId, suspended) {
     return request('/workspaces/' + workspaceId + '/suspension', { method: 'PATCH', auth: true, body: { suspended } });
   }
-  async function reportWorkspace(workspaceId, reason, details) {
-    return request('/workspaces/' + workspaceId + '/reports', { method: 'POST', auth: true, body: { reason, details } });
+  async function reportWorkspace(workspaceId, reason, description) {
+    return request('/workspaces/' + workspaceId + '/reports', { method: 'POST', auth: true, body: { reason, description } });
   }
 
   // Bookings

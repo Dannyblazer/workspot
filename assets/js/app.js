@@ -1573,7 +1573,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
                         <div className="flex items-center gap-2">
                           {w.featured && <Badge color="amber">Featured</Badge>}
                           <Badge color={w.rating >= 4.5 ? "green" : "gray"}>{w.rating} ★</Badge>
-                          <Btn v="danger" s="sm" onClick={() => onSuspendWorkspace(w)}>{w.suspended ? "Unsuspend" : "Suspend"}</Btn>
+                          <Btn v="danger" s="sm" className="rounded-md" onClick={() => onSuspendWorkspace(w)}>{w.suspended ? "Unsuspend" : "Suspend"}</Btn>
                         </div>
                       </div>
                       <div className="flex gap-4 mt-2 text-sm text-gray-500">
