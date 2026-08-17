@@ -130,6 +130,15 @@
       method: 'PATCH', auth: true, body: { is_approved }
     });
   }
+  async function updateWorkspaceSchedule(workspaceId, schedule) {
+    return request('/workspaces/' + workspaceId + '/schedule', { method: 'PATCH', auth: true, body: schedule });
+  }
+  async function suspendWorkspace(workspaceId, suspended) {
+    return request('/workspaces/' + workspaceId + '/suspension', { method: 'PATCH', auth: true, body: { suspended } });
+  }
+  async function reportWorkspace(workspaceId, reason, description) {
+    return request('/workspaces/' + workspaceId + '/reports', { method: 'POST', auth: true, body: { reason, description } });
+  }
 
   // Bookings
   async function createBooking(booking) {
@@ -187,7 +196,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me, updateEmail, updatePassword,
-    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval,
+    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
