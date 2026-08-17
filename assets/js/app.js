@@ -410,7 +410,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-white rounded-card shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
+      <div className="bg-white rounded-card rounded-md shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
         <div className="flex border-b border-gray-100 sticky top-0 bg-white z-10">
           <button onClick={() => setMode("login")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "login" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign In</button>
           <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
@@ -1406,9 +1406,10 @@ const ReportWorkspaceModal = ({ workspace, open, onClose, onSubmit }) => {
 };
 
 // ==================== SUPERADMIN DASHBOARD ====================
-const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApproveWorkspace, onSuspendWorkspace }) => {
+const SuperAdminDashboard = ({ workspaces, bookings, stats, users, reports, onBack, onApproveWorkspace, onSuspendWorkspace, onUpdateReport }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
+  const [reportFilter, setReportFilter] = useState("open");
   const ownerById = useMemo(() => new Map(users.map(u => [String(u.id), u])), [users]);
   const workspaceOwner = (workspace) => ownerById.get(String(workspace.ownerId ?? workspace.owner_id));
   const ownerLabel = (workspace) => {
@@ -1426,6 +1427,8 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
   
   const pendingWorkspaces = workspaces.filter(w => (w.approved ?? w.is_approved ?? w.isApproved) !== true);
   const confirmedBookings = stats?.confirmedBookings ?? bookings.filter(b => b.status === "confirmed").length;
+  const openReports = reports.filter(r => r.status === "pending" || r.status === "under_review");
+  const filteredReports = reportFilter === "all" ? reports : reportFilter === "open" ? openReports : reports.filter(r => r.status === reportFilter);
 
   const recentBookings = [...bookings].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
 
@@ -1478,13 +1481,13 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
 
         {/* Tabs */}
         <div className="flex gap-6 border-b border-gray-200 mb-6">
-          {["overview", "pending", "workspaces", "bookings", "users"].map(tab => (
+          {["overview", "pending", "reports", "workspaces", "bookings", "users"].map(tab => (
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`pb-3 text-sm font-semibold capitalize transition-colors ${activeTab === tab ? "border-b-2 border-brand-accent text-brand" : "text-gray-400 hover:text-gray-900"}`}
             >
-              {tab}{tab === "pending" && pendingWorkspaces.length > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">{pendingWorkspaces.length}</span>}
+              {tab}{tab === "pending" && pendingWorkspaces.length > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">{pendingWorkspaces.length}</span>}{tab === "reports" && openReports.length > 0 && <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">{openReports.length}</span>}
             </button>
           ))}
         </div>
@@ -1601,6 +1604,17 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, onBack, onApp
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {activeTab === "reports" && (
+          <div>
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="text-lg font-bold text-slate-900">Workspace reports</h3><p className="text-sm text-slate-500">Review seeker concerns and take action on reported listings.</p></div><select value={reportFilter} onChange={e => setReportFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm"><option value="open">Open reports</option><option value="pending">Pending</option><option value="under_review">Under review</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option><option value="all">All reports</option></select></div>
+            <div className="space-y-3">{filteredReports.length === 0 ? <Card className="p-8 text-center text-slate-500">No reports in this view.</Card> : filteredReports.map(report => {
+              const workspace = workspaces.find(w => String(w.id) === String(report.workspaceId));
+              const statusColor = report.status === "resolved" ? "green" : report.status === "dismissed" ? "gray" : report.status === "under_review" ? "blue" : "amber";
+              return <Card key={report.id} className="p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><h4 className="font-bold text-slate-900">{report.workspaceName}</h4><Badge color={statusColor}>{report.status.replace("_", " ")}</Badge></div><p className="text-sm font-medium capitalize text-slate-700">{report.reason.replaceAll("_", " ")}</p><p className="mt-2 text-sm leading-relaxed text-slate-600">{report.description}</p><div className="mt-3 text-xs text-slate-400">Reported by <span className="font-medium text-slate-600">{report.reporterName}</span> ({report.reporterEmail}) · {new Date(report.createdAt).toLocaleDateString()}</div></div><div className="flex flex-wrap gap-2">{report.status === "pending" && <Btn v="secondary" s="sm" onClick={() => onUpdateReport(report.id, "under_review")}><I n="clock" s={14}/> Review</Btn>}{(report.status === "pending" || report.status === "under_review") && <><Btn v="success" s="sm" onClick={() => onUpdateReport(report.id, "resolved")}><I n="check" s={14}/> Resolve</Btn><Btn v="ghost" s="sm" onClick={() => onUpdateReport(report.id, "dismissed")}>Dismiss</Btn></>}{workspace && <Btn v="danger" s="sm" onClick={() => onSuspendWorkspace(workspace)}>{workspace.suspended ? "Unsuspend" : "Suspend workspace"}</Btn>}</div></div></Card>;
+            })}</div>
           </div>
         )}
 
@@ -2777,7 +2791,7 @@ const App = () => {
   const [bookingValidation, setBookingValidation] = useState(null);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const [ownerStats, setOwnerStats] = useState(null);
-  const [adminData, setAdminData] = useState({ stats: null, users: [] });
+  const [adminData, setAdminData] = useState({ stats: null, users: [], reports: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -2843,8 +2857,8 @@ const App = () => {
     }
     if (u.role === "superadmin") {
       try {
-        const [stats, adminUsers] = await Promise.all([api.adminStats(), api.adminUsers(), loadManagementWorkspaces()]);
-        setAdminData({ stats, users: adminUsers });
+        const [stats, adminUsers, reports] = await Promise.all([api.adminStats(), api.adminUsers(), api.adminReports(), loadManagementWorkspaces()]);
+        setAdminData({ stats, users: adminUsers, reports });
       } catch (e) { /* not fatal */ }
     }
   };
@@ -2885,7 +2899,7 @@ const App = () => {
     setFavorites([]);
     setOwnerStats(null);
     setManagementWorkspaces([]);
-    setAdminData({ stats: null, users: [] });
+    setAdminData({ stats: null, users: [], reports: [] });
     setView("landing");
     showToast("Signed out successfully");
   };
@@ -2996,6 +3010,13 @@ const App = () => {
     try { await api.suspendWorkspace(workspace.id, next); showToast(`${workspace.name} ${next ? "suspended" : "reinstated"}.`); await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]); }
     catch (e) { showToast(e.message); }
   };
+  const handleUpdateReport = async (id, status) => {
+    try {
+      const updated = await api.updateAdminReport(id, status);
+      setAdminData(current => ({...current, reports: current.reports.map(report => report.id === id ? (updated?.id ? updated : {...report, status}) : report)}));
+      showToast(`Report marked ${status.replace("_", " ")}.`);
+    } catch (e) { showToast(e.message); }
+  };
   const handleReportWorkspace = async (id, reason, details) => {
     if (!user) { setAuthOpen(true); return false; }
     try { await api.reportWorkspace(id, reason, details); showToast("Report submitted. Thank you."); return true; }
@@ -3041,7 +3062,7 @@ const App = () => {
       case "workspace-details": return selectedWorkspace ? <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} onReport={(w) => user ? setReportWorkspace(w) : setAuthOpen(true)} /> : <div className="py-24 text-center text-slate-500">Loading workspace...</div>;
       case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
       case "profile": return <ProfilePage user={user} onEmailUpdated={setUser} showToast={showToast} />;
-      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} onSuspendWorkspace={handleSuspendWorkspace} />;
+      case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} reports={adminData.reports} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} onSuspendWorkspace={handleSuspendWorkspace} onUpdateReport={handleUpdateReport} />;
       default: return <Hero onSearch={() => setView("listings")} />;
     }
   };

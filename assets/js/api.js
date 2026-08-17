@@ -183,6 +183,12 @@
   async function adminUsers() {
     return request('/admin/users', { auth: true });
   }
+  async function adminReports(status) {
+    return request('/admin/reports' + (status ? '?status=' + encodeURIComponent(status) : ''), { auth: true });
+  }
+  async function updateAdminReport(id, status) {
+    return request('/admin/reports/' + id, { method: 'PATCH', auth: true, body: { status } });
+  }
 
   // Google Sign-In — posts the GSI credential (JWT) to the backend.
   async function loginWithGoogle(credential, role) {
@@ -200,6 +206,6 @@
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
-    adminStats, adminUsers,
+    adminStats, adminUsers, adminReports, updateAdminReport,
   };
 })(window);
