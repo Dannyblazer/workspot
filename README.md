@@ -90,17 +90,7 @@ workspot/
 │   └── js/
 │       ├── api.js              # API client (window.api) — loaded before app.js
 │       └── app.js              # Main application (all React components)
-├── backend/
-│   ├── main.go                 # Config load, DB connect, migrate+seed, start Gin
-│   ├── .env.example            # DB_URL, JWT_SECRET, PORT, CORS_ORIGIN + demo creds
-│   └── internal/
-│       ├── config/             # env parsing
-│       ├── database/           # pgxpool connect, migration runner, migrations/ + seed/ SQL
-│       ├── models/             # structs + JSON tags matching the frontend shapes
-│       ├── auth/               # bcrypt, JWT sign/parse, RequireAuth/RequireRole middleware
-│       ├── handlers/           # auth, workspaces, bookings, favorites, owner, withdrawals, admin
-│       └── server/             # route table + CORS
-└── README.md                   # This file
+
 ```
 
 ### Component Architecture
