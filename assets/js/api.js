@@ -99,6 +99,11 @@
   async function getReviews(workspaceId) {
     return request('/workspaces/' + workspaceId + '/reviews');
   }
+  async function createReview(workspaceId, bookingId, rating, text) {
+    return request('/workspaces/' + workspaceId + '/reviews', {
+      method: 'POST', auth: true, body: { bookingId, rating, text }
+    });
+  }
   async function createWorkspace(workspace) {
     return request('/workspaces', { method: 'POST', auth: true, body: workspace });
   }
@@ -202,7 +207,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me, updateEmail, updatePassword,
-    listWorkspaces, getWorkspace, getReviews, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace,
+    listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
