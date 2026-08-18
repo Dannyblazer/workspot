@@ -605,15 +605,24 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
 const BookingModal = ({ workspace, open, onClose, onBook }) => {
   const [bookingType, setBookingType] = useState("daily");
   const [quantity, setQuantity] = useState(1);
-  const [date, setDate] = useState("2026-07-25");
+  const [seatCount, setSeatCount] = useState(1);
+  const [startAt, setStartAt] = useState("");
   const [step, setStep] = useState(1);
+
+  const defaultStart = () => {
+    const d = new Date();
+    d.setMinutes(0, 0, 0);
+    d.setHours(Math.max(d.getHours() + 1, 8));
+    return d.toISOString().slice(0, 16);
+  };
 
   // Reset state when modal opens (bug fix: state should reset between workspaces)
   useEffect(() => {
     if (open && workspace) {
       setBookingType(pricedTiers(workspace)[0] || "daily");
       setQuantity(1);
-      setDate("2026-07-25");
+      setSeatCount(1);
+      setStartAt(defaultStart());
       setStep(1);
     }
   }, [open, workspace?.id]);
@@ -622,9 +631,17 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
   const typeLabels = { hourly: "Hours", daily: "Days", weekly: "Weeks", monthly: "Months" };
   const total = (workspace.pricing[bookingType] || 0) * quantity;
-  const fee = Math.round(total * 0.05);
+  const fee = Math.round(total * (workspace.paymentProcessingFeeRate || 0));
   const grandTotal = total + fee;
-  const avail = (workspace.availability?.[bookingType]?.total || 0) - (workspace.availability?.[bookingType]?.booked || 0);
+  const capacity = workspace.seatCapacity || workspace.capacity || workspace.availability?.daily?.total || 0;
+  const endPreview = startAt ? (() => {
+    const d = new Date(startAt);
+    if (bookingType === "hourly") d.setHours(d.getHours() + quantity);
+    if (bookingType === "daily") d.setDate(d.getDate() + quantity);
+    if (bookingType === "weekly") d.setDate(d.getDate() + quantity * 7);
+    if (bookingType === "monthly") d.setMonth(d.getMonth() + quantity);
+    return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  })() : "—";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -650,29 +667,34 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Number of {typeLabels[bookingType]} <span className="text-gray-400 font-normal">(Max: {avail})</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Duration ({typeLabels[bookingType]})</label>
                 <div className="flex items-center gap-3">
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">-</button>
                   <span className="text-lg font-semibold w-12 text-center">{quantity}</span>
-                  <button onClick={() => setQuantity(Math.min(avail, quantity + 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button>
+                  <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Seats</label>
+                <div className="flex items-center gap-3"><button onClick={() => setSeatCount(Math.max(1, seatCount - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">-</button><span className="text-lg font-semibold w-12 text-center">{seatCount}</span><button onClick={() => setSeatCount(Math.min(Math.max(1, capacity), seatCount + 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button><span className="text-xs text-gray-400">of {capacity || "workspace capacity"}</span></div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start date and time</label>
+                <input type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                <p className="mt-2 text-xs text-gray-500">Ends {endPreview} · Workspace timezone: Africa/Lagos</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Subtotal</span><span className="font-medium">₦{total.toLocaleString()}</span></div>
-                <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Service fee (5%)</span><span className="font-medium">₦{fee.toLocaleString()}</span></div>
+                <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Payment processing fee</span><span className="font-medium">₦{fee.toLocaleString()}</span></div>
                 <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between"><span className="font-semibold">Total</span><span className="font-bold text-lg">₦{grandTotal.toLocaleString()}</span></div>
               </div>
-              <Btn v="primary" s="lg" full onClick={() => setStep(2)} disabled={avail < 1}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
+              <Btn v="primary" s="lg" full onClick={() => setStep(2)} disabled={!startAt || !capacity || seatCount > capacity}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
             </div>
           ) : (
             <div className="space-y-5">
               <div className="flex items-center gap-2"><button onClick={() => setStep(1)} className="text-sm text-gray-500 hover:text-gray-700">← Back</button></div>
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-600">Booking</span><span className="text-sm font-medium">{quantity} {bookingType}</span></div>
+                <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-600">Reservation</span><span className="text-sm font-medium">{seatCount} seats · {quantity} {bookingType}</span></div>
                 <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Total</span><span className="text-lg font-bold">₦{grandTotal.toLocaleString()}</span></div>
               </div>
               <div>
@@ -686,7 +708,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">Expiry</label><input type="text" placeholder="MM/YY" className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-2">CVC</label><input type="text" placeholder="123" className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
               </div>
-              <Btn v="primary" s="lg" full onClick={() => { onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, date }); onClose(); }}><I n="creditCard" s={18} /> Pay ₦{grandTotal.toLocaleString()} & Book</Btn>
+              <Btn v="primary" s="lg" full onClick={() => { onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: new Date(startAt).toISOString() }); onClose(); }}><I n="creditCard" s={18} /> Pay ₦{grandTotal.toLocaleString()} & Book</Btn>
               <p className="text-xs text-center text-gray-400">Secured by Paystack. Your payment is encrypted.</p>
             </div>
           )}
@@ -2587,10 +2609,15 @@ const DetailRow = ({ icon, label, value }) => (
   </div>
 );
 
-const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation }) => {
+const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, currentUser, onSubmitReview }) => {
   const [booking, setBooking] = useState(initialBooking || null);
   const [loading, setLoading] = useState(!initialBooking);
   const [error, setError] = useState("");
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewError, setReviewError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -2626,6 +2653,23 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation }) =
     expired: { icon: "flag", title: "Expired — not valid for entry", note: "This booking's window has passed.", cls: "bg-red-50 border-red-200", iconC: "text-red-600", titleC: "text-red-800" },
   };
   const vd = validation ? (validationMap[validation] || { icon: "flag", title: cap(validation), note: "", cls: "bg-gray-50 border-gray-200", iconC: "text-gray-500", titleC: "text-gray-800" }) : null;
+  const visitHasEnded = booking?.date && booking.date < new Date().toISOString().slice(0, 10);
+  const canReview = currentUser?.role === "user" && booking?.userId === currentUser.id &&
+    (booking.status === "completed" || (booking.status === "confirmed" && visitHasEnded));
+
+  const submitReview = async () => {
+    if (!reviewRating) { setReviewError("Choose a star rating before submitting."); return; }
+    setReviewSaving(true);
+    setReviewError("");
+    try {
+      const ok = await onSubmitReview(booking.workspaceId, booking.id, reviewRating, reviewText.trim());
+      if (ok) setReviewSubmitted(true);
+    } catch (e) {
+      setReviewError(e.message || "Could not submit your review.");
+    } finally {
+      setReviewSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -2696,7 +2740,7 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation }) =
               </Card>
             </Reveal>
 
-            <Reveal delay={2}>
+            <Reveal delay={2} className="mb-6">
               <Card className="p-6">
                 <h2 className="font-display text-sm font-bold uppercase tracking-widest text-gray-400 mb-5">Payment</h2>
                 <div className="space-y-3 text-sm">
@@ -2709,6 +2753,31 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation }) =
                 </div>
               </Card>
             </Reveal>
+            {canReview && (
+              <Reveal delay={3}>
+                <Card className="p-6">
+                  {reviewSubmitted ? (
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-emerald-50"><I n="check" s={20} c="text-emerald-600" /></div>
+                      <div><h2 className="font-display font-bold text-gray-900">Review submitted</h2><p className="mt-1 text-sm text-gray-500">Thank you for sharing your experience with other workspace seekers.</p></div>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="font-display text-lg font-bold text-gray-900">How was your workspace?</h2>
+                      <p className="mt-1 text-sm text-gray-500">Your review helps others choose with confidence.</p>
+                      <div className="mt-5 flex gap-1" role="group" aria-label="Review rating">
+                        {[1,2,3,4,5].map(star => <button key={star} type="button" onClick={() => { setReviewRating(star); setReviewError(""); }} className="rounded-md p-1 transition-transform hover:scale-110" aria-label={`${star} star${star > 1 ? "s" : ""}`}><I n="star" s={28} c={star <= reviewRating ? "text-amber-400" : "text-gray-200"} /></button>)}
+                      </div>
+                      <label className="mt-5 block text-sm font-medium text-gray-700">Share a few details <span className="font-normal text-gray-400">(optional)</span></label>
+                      <textarea value={reviewText} onChange={e => setReviewText(e.target.value.slice(0, 1000))} rows={4} placeholder="What stood out about the space, service, or amenities?" className="mt-2 w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm outline-none transition-colors focus:border-gray-900" />
+                      <div className="mt-1 text-right text-xs text-gray-400">{reviewText.length}/1000</div>
+                      {reviewError && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{reviewError}</p>}
+                      <Btn v="primary" className="mt-4" disabled={reviewSaving} onClick={submitReview}>{reviewSaving ? "Submitting..." : "Submit review"}</Btn>
+                    </>
+                  )}
+                </Card>
+              </Reveal>
+            )}
           </>
         )}
       </div>
@@ -2912,8 +2981,8 @@ const App = () => {
 
   const handleConfirmBook = async (b) => {
     try {
-      await api.createBooking({ workspaceId: b.workspaceId, type: b.type, quantity: b.quantity, date: b.date });
-      showToast(`Booked ${b.workspaceName} for ${b.quantity} ${b.type}!`);
+      await api.createBooking({ workspaceId: b.workspaceId, type: b.type, quantity: b.quantity, seatCount: b.seatCount, startAt: b.startAt });
+      showToast(`Booked ${b.seatCount} seat${b.seatCount > 1 ? "s" : ""} for ${b.quantity} ${b.type}!`);
       // Refetch so availability and booking lists reflect server truth.
       await Promise.all([loadWorkspaces(), refreshBookings()]);
       if (user?.role === "owner") await Promise.all([refreshOwnerStats(), loadManagementWorkspaces()]);
@@ -3022,6 +3091,17 @@ const App = () => {
     try { await api.reportWorkspace(id, reason, details); showToast("Report submitted. Thank you."); return true; }
     catch (e) { showToast(e.message); return false; }
   };
+  const handleSubmitReview = async (workspaceId, bookingId, rating, text) => {
+    try {
+      await api.createReview(workspaceId, bookingId, rating, text);
+      showToast("Review submitted. Thank you!");
+      await Promise.all([loadWorkspaces(), loadManagementWorkspaces()]);
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      throw e;
+    }
+  };
 
   const handleViewDetails = (ws) => {
     setSelectedWorkspace(ws);
@@ -3060,7 +3140,7 @@ const App = () => {
       case "owner-workspaces": return <OwnerWorkspaces ownerId={user?.id} workspaces={managementWorkspaces} onAddWorkspace={() => setAddWorkspaceOpen(true)} onEditAvailability={(w) => { setEditAvailWorkspace(w); setEditAvailOpen(true); }} onEditPricing={(w) => { setEditPricingWorkspace(w); setEditPricingOpen(true); }} onEditSchedule={(w) => { setEditScheduleWorkspace(w); setEditScheduleOpen(true); }} onEditLocation={(w) => { setEditLocationWorkspace(w); setEditLocationOpen(true); }} />;
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "workspace-details": return selectedWorkspace ? <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} onReport={(w) => user ? setReportWorkspace(w) : setAuthOpen(true)} /> : <div className="py-24 text-center text-slate-500">Loading workspace...</div>;
-      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} onBack={handleBackFromBooking} />;
+      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} currentUser={user} onSubmitReview={handleSubmitReview} onBack={handleBackFromBooking} />;
       case "profile": return <ProfilePage user={user} onEmailUpdated={setUser} showToast={showToast} />;
       case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} reports={adminData.reports} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} onSuspendWorkspace={handleSuspendWorkspace} onUpdateReport={handleUpdateReport} />;
       default: return <Hero onSearch={() => setView("listings")} />;
