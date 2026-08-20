@@ -145,6 +145,11 @@
     return request('/workspaces/' + workspaceId + '/reports', { method: 'POST', auth: true, body: { reason, description } });
   }
 
+  // Public newsletter subscription. No authentication is required.
+  async function subscribe(email) {
+    return request('/subscriptions', { method: 'POST', body: { email } });
+  }
+
   // Bookings
   async function createBooking(booking) {
     return request('/bookings', { method: 'POST', auth: true, body: booking });
@@ -207,7 +212,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, login, loginWithGoogle, me, updateEmail, updatePassword,
-    listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace,
+    listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
     createBooking, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
