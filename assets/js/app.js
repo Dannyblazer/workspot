@@ -1908,15 +1908,21 @@ const Newsletter = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email.trim()) return;
     setStatus("loading");
-    // Placeholder — wire to your backend newsletter endpoint when ready
-    setTimeout(() => {
+    setMessage("");
+    try {
+      const result = await api.subscribe(email.trim());
       setStatus("success");
-      setMessage("You're subscribed! Check your inbox for the best workspaces.");
+      setMessage(result?.email
+        ? `${result.email} is subscribed. Check your inbox for the best workspaces.`
+        : "You're subscribed! Check your inbox for the best workspaces.");
       setEmail("");
       setTimeout(() => { setStatus(""); setMessage(""); }, 4000);
-    }, 800);
+    } catch (err) {
+      setStatus("error");
+      setMessage(err?.message || "We couldn't subscribe you right now. Please try again.");
+    }
   };
 
   return (
