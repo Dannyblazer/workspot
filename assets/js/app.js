@@ -312,9 +312,8 @@ const Badge = ({ children, color = "gray" }) => {
 const Card = ({ children, className = "", onClick, hover = false }) => <div onClick={onClick} className={`bg-white rounded-card border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-500 ease-out ${hover ? "ws-hover hover:shadow-lift hover:border-gray-900/20 hover:-translate-y-1.5 cursor-pointer" : ""} ${className}`}>{children}</div>;
 
 // ==================== AUTH MODAL ====================
-const AuthModal = ({ open, onClose, onLogin }) => {
+const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
   const [mode, setMode] = useState("login");
-  const [role, setRole] = useState("user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -328,7 +327,6 @@ const AuthModal = ({ open, onClose, onLogin }) => {
   useEffect(() => {
     if (open) {
       setMode("login");
-      setRole("user");
       setEmail("");
       setPassword("");
       setName("");
@@ -344,7 +342,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
     try {
       const res = mode === "login"
         ? await api.login(email, password)
-        : await api.register(email, password, name || email.split("@")[0], role);
+        : await api.register(email, password, name || email.split("@")[0], "user");
       api.setToken(res.token);
       onLogin(res.user);
       onClose();
@@ -364,7 +362,7 @@ const AuthModal = ({ open, onClose, onLogin }) => {
     try {
       const res = mode === "login"
         ? await api.loginWithGoogle(credential, undefined)
-        : await api.loginWithGoogle(credential, role === "owner" ? "owner" : undefined);
+        : await api.loginWithGoogle(credential, undefined);
       api.setToken(res.token);
       onLogin(res.user);
       onClose();
@@ -450,21 +448,16 @@ const AuthModal = ({ open, onClose, onLogin }) => {
               </div>
             </div>
 
-            {mode === "signup" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">I am a...</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setRole("user")} className={`p-3 rounded-control border-2 text-center ${role === "user" ? "border-brand bg-brand-soft" : "border-gray-200"}`}><I n="user" s={24} c={`mx-auto mb-1 ${role === "user" ? "text-brand" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "user" ? "text-brand" : "text-gray-600"}`}>Seeker</div></button>
-                  <button type="button" onClick={() => setRole("owner")} className={`p-3 rounded-control border-2 text-center ${role === "owner" ? "border-brand bg-brand-soft" : "border-gray-200"}`}><I n="building" s={24} c={`mx-auto mb-1 ${role === "owner" ? "text-brand" : "text-gray-400"}`} /><div className={`text-sm font-medium ${role === "owner" ? "text-brand" : "text-gray-600"}`}>Owner</div></button>
-                </div>
-              </div>
-            )}
-
             {error && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
             {googleError && <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{googleError}</div>}
             
             <Btn v="primary" s="lg" full disabled={loading || googleLoading}>{loading || googleLoading ? "Processing..." : (mode === "login" ? "Sign In" : "Create Account")}</Btn>
           </form>
+          {mode === "signup" && onHostSignup && (
+            <p className="mt-4 text-center text-xs text-gray-500">
+              Listing a workspace? <button type="button" onClick={onHostSignup} className="font-semibold text-brand-accent hover:underline">Sign up as Host</button>
+            </p>
+          )}
           <div className="flex items-center gap-3 my-5">
             <div className="h-px flex-1 bg-gray-200" />
             <span className="text-xs uppercase tracking-[0.18em] text-gray-400">or</span>
@@ -608,6 +601,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
   const [seatCount, setSeatCount] = useState(1);
   const [startAt, setStartAt] = useState("");
   const [step, setStep] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
 
   const defaultStart = () => {
     const d = new Date();
@@ -624,6 +618,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
       setSeatCount(1);
       setStartAt(defaultStart());
       setStep(1);
+      setSubmitting(false);
     }
   }, [open, workspace?.id]);
 
@@ -697,19 +692,16 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div className="flex justify-between items-center mb-2"><span className="text-sm text-gray-600">Reservation</span><span className="text-sm font-medium">{seatCount} seats · {quantity} {bookingType}</span></div>
                 <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Total</span><span className="text-lg font-bold">₦{grandTotal.toLocaleString()}</span></div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Card Number</label>
-                <div className="relative">
-                  <input type="text" placeholder="4242 4242 4242 4242" className="px-4 py-2.5 pl-10 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
-                  <I n="creditCard" s={18} c="absolute left-3 top-3 text-gray-400" />
-                </div>
+              <div className="rounded-lg border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
+                This reservation uses temporary manual payment confirmation. Review the booking details, then confirm to hold your seats.
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">Expiry</label><input type="text" placeholder="MM/YY" className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-2">CVC</label><input type="text" placeholder="123" className="px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" /></div>
-              </div>
-              <Btn v="primary" s="lg" full onClick={() => { onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: new Date(startAt).toISOString() }); onClose(); }}><I n="creditCard" s={18} /> Pay ₦{grandTotal.toLocaleString()} & Book</Btn>
-              <p className="text-xs text-center text-gray-400">Secured by Paystack. Your payment is encrypted.</p>
+              <Btn v="primary" s="lg" full disabled={submitting} onClick={async () => {
+                setSubmitting(true);
+                const completed = await onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: new Date(startAt).toISOString() });
+                setSubmitting(false);
+                if (completed !== false) onClose();
+              }}><I n="creditCard" s={18} /> {submitting ? "Confirming..." : `Confirm booking · ₦${grandTotal.toLocaleString()}`}</Btn>
+              <p className="text-xs text-center text-gray-400">Payment confirmation is currently manual while provider verification is being integrated. Do not enter real card details.</p>
             </div>
           )}
         </div>
@@ -1738,7 +1730,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <button onClick={() => setView("owner-signup")} className="hidden sm:inline-block link-sweep text-sm font-medium tracking-tight text-gray-500 hover:text-gray-900 mr-1">List your space</button>
+                <button onClick={() => setView("owner-signup")} className="hidden sm:inline-block link-sweep text-sm font-medium tracking-tight text-gray-500 hover:text-gray-900 mr-1">Host your space</button>
                 <Btn v="ghost" s="sm" onClick={onLogin} className="rounded-md">Sign In</Btn>
                 <Btn v="primary" s="sm" onClick={onLogin} className="rounded-md">Get Started</Btn>
               </div>
@@ -1754,7 +1746,7 @@ const Navbar = ({ user, onLogin, onLogout, view, setView }) => {
               <button onClick={() => { setView("landing"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Find Space</button>
               <button onClick={() => { setView("listings"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">Listings</button>
               <button onClick={() => { setView("how-it-works"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg hover:bg-gray-50">How it Works</button>
-              <button onClick={() => { setView("owner-signup"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg text-brand-accent hover:bg-gray-50">List your space</button>
+              <button onClick={() => { setView("owner-signup"); setMobileOpen(false); }} className="block text-left px-3 py-2 text-sm font-medium rounded-lg text-brand-accent hover:bg-gray-50">Host your space</button>
             </>
           ) : user.role === "superadmin" ? (
             <>
@@ -1897,6 +1889,44 @@ const HowItWorks = () => (
             <p className="text-gray-500 text-sm max-w-xs mx-auto leading-relaxed">{step.desc}</p>
           </Reveal>
         ))}
+      </div>
+    </div>
+  </section>
+);
+
+// ==================== HOST CTA ====================
+const HostSpaceCard = ({ onBecomeHost }) => (
+  <section className="border-y border-gray-100 bg-white py-10 sm:py-14">
+    <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 lg:grid-cols-[1.35fr_1fr]">
+      <div className="rounded-card border border-gray-200 bg-[#F7F6FC] px-6 py-7 sm:px-8 sm:py-9">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-accent">Why hosts choose WorkSpot</p>
+        <h2 className="mt-3 max-w-xl font-display text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Turn your space into a productive destination.</h2>
+        <div className="mt-7 grid gap-5 sm:grid-cols-3">
+          {[
+            { icon: "shield", title: "Verified listings", text: "Build trust with professionals." },
+            { icon: "calendar", title: "Simple management", text: "Manage bookings in one place." },
+            { icon: "trendUp", title: "Earn more", text: "Fill unused seats and rooms." }
+          ].map(item => (
+            <div key={item.title} className="flex items-start gap-3">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white text-brand-accent shadow-sm"><I n={item.icon} s={18} /></span>
+              <div><h3 className="text-sm font-semibold text-gray-900">{item.title}</h3><p className="mt-1 text-xs leading-relaxed text-gray-500">{item.text}</p></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="relative min-h-[250px] overflow-hidden rounded-card bg-brand text-white">
+        <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=85" alt="Bright workspace ready for teams" className="absolute inset-0 h-full w-full object-cover opacity-45" />
+        <div className="absolute inset-0 bg-[#17134A]/75" />
+        <div className="relative flex h-full flex-col justify-between p-6 sm:p-8">
+          <div className="max-w-xs">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">For workspace owners</p>
+            <h2 className="mt-3 font-display text-2xl font-bold tracking-tight">List your space on WorkSpot</h2>
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/75">Reach people looking for a better place to work and grow your space’s income.</p>
+          </div>
+          <button type="button" onClick={onBecomeHost} className="mt-7 inline-flex w-fit items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-brand transition hover:bg-brand-soft">
+            Become a host <I n="arrowRight" s={16} />
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -2839,7 +2869,7 @@ const Footer = () => (
         <div>
           <h4 className="text-xs font-semibold tracking-[0.18em] text-brand-accent uppercase mb-4">For Owners</h4>
           <ul className="space-y-2.5 text-sm text-gray-400">
-            <li><a href="#" className="link-sweep hover:text-white">List Your Space</a></li>
+            <li><a href="#" className="link-sweep hover:text-white">Host Your Space</a></li>
             <li><a href="#" className="link-sweep hover:text-white">Owner Dashboard</a></li>
             <li><a href="#" className="link-sweep hover:text-white">Pricing Guide</a></li>
             <li><a href="#" className="link-sweep hover:text-white">Resources</a></li>
@@ -3011,13 +3041,16 @@ const App = () => {
 
   const handleConfirmBook = async (b) => {
     try {
-      await api.createBooking({ workspaceId: b.workspaceId, type: b.type, quantity: b.quantity, seatCount: b.seatCount, startAt: b.startAt });
-      showToast(`Booked ${b.seatCount} seat${b.seatCount > 1 ? "s" : ""} for ${b.quantity} ${b.type}!`);
+      const booking = await api.createBooking({ workspaceId: b.workspaceId, type: b.type, quantity: b.quantity, seatCount: b.seatCount, startAt: b.startAt });
+      await api.confirmPayment(booking.id, "manual", `manual-${booking.id}`);
+      showToast(`Booking confirmed and payment recorded for ${b.seatCount} seat${b.seatCount > 1 ? "s" : ""}.`);
       // Refetch so availability and booking lists reflect server truth.
       await Promise.all([loadWorkspaces(), refreshBookings()]);
       if (user?.role === "owner") await Promise.all([refreshOwnerStats(), loadManagementWorkspaces()]);
+      return true;
     } catch (e) {
       showToast(e.message);
+      return false;
     }
   };
 
@@ -3159,7 +3192,7 @@ const App = () => {
 
   const renderView = () => {
     switch (view) {
-      case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /><Newsletter /></>;
+      case "landing": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /><HowItWorks /><HostSpaceCard onBecomeHost={() => setView("owner-signup")} /><Newsletter /></>;
       case "listings": return <ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} />;
       case "how-it-works": return <HowItWorks />;
       case "owner-signup": return <OwnerSignupView onLogin={handleLogin} onCancel={() => setView("landing")} onSwitchToSignin={() => { setView("landing"); setAuthOpen(true); }} />;
@@ -3183,7 +3216,7 @@ const App = () => {
       <Navbar user={user} onLogin={() => setAuthOpen(true)} onLogout={handleLogout} view={view} setView={setView} />
       <main style={{ flex: "1 0 auto" }}>{renderView()}</main>
       <Footer />
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onLogin={handleLogin} />
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onLogin={handleLogin} onHostSignup={() => { setAuthOpen(false); setView("owner-signup"); }} />
       <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
