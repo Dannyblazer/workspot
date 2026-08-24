@@ -645,7 +645,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-card shadow-2xl max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-card rounded-md shadow-2xl max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="relative h-40 bg-gray-100">
           <img src={workspace.image} alt={workspace.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -688,7 +688,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Payment processing fee</span><span className="font-medium">₦{fee.toLocaleString()}</span></div>
                 <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between"><span className="font-semibold">Total</span><span className="font-bold text-lg">₦{grandTotal.toLocaleString()}</span></div>
               </div>
-              <Btn v="primary" s="lg" full onClick={() => setStep(2)} disabled={!startAt || !capacity || seatCount > capacity}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
+              <Btn v="primary" s="lg" className="rounded-md" full onClick={() => setStep(2)} disabled={!startAt || !capacity || seatCount > capacity}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
             </div>
           ) : (
             <div className="space-y-5">
@@ -1542,6 +1542,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, reports, onBa
                       <div className="text-right">
                         <div className="font-bold text-sm">₦{b.total.toLocaleString()}</div>
                         <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                        <Badge color={b.paymentStatus === "paid" ? "green" : "amber"}>{b.paymentStatus}</Badge>
                       </div>
                     </div>
                   ))}
@@ -1655,6 +1656,7 @@ const SuperAdminDashboard = ({ workspaces, bookings, stats, users, reports, onBa
                   <div className="text-right">
                     <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                     <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                    <Badge color={b.paymentStatus === "paid" ? "green" : "amber"}>{b.paymentStatus}</Badge>
                   </div>
                 </div>
               </Card>
@@ -2140,6 +2142,7 @@ const UserDashboard = ({ bookings, workspaces, onBook, onViewDetails }) => {
               <div className="text-left sm:text-right">
                 <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                 <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                <Badge color={b.paymentStatus === "paid" ? "green" : "amber"}>{b.paymentStatus}</Badge>
               </div>
             </div>
           </Card>
@@ -2371,6 +2374,7 @@ const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, 
               <div className="text-right">
                 <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                 <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                <Badge color={b.paymentStatus === "paid" ? "green" : "amber"}>{b.paymentStatus}</Badge>
               </div>
             </div>
           </Card>
@@ -2515,6 +2519,12 @@ const OwnerBookings = ({ bookings, onViewBooking }) => {
                   <div className="flex justify-between"><span className="text-gray-600">Date</span><span className="font-semibold text-gray-900">{scanResult.booking.date}</span></div>
                   <div className="flex justify-between"><span className="text-gray-600">Type</span><span className="font-semibold text-gray-900">{scanResult.booking.quantity} {scanResult.booking.type}</span></div>
                   <div className="flex justify-between"><span className="text-gray-600">Total</span><span className="font-semibold text-gray-900">₦{scanResult.booking.total.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Check-In</span><span className="font-semibold text-gray-900">{scanResult.booking.checked_in_at ? new Date(scanResult.booking.checked_in_at).toLocaleString("en-US", {
+                                    dateStyle: "medium",
+                                    timeStyle: "short",
+                                  })
+                                : "N/A" // Fallback value
+                                }</span></div>
                   <div className="pt-3 border-t border-gray-200">
                     <Btn v="ghost" s="sm" full onClick={() => { onViewBooking && onViewBooking(scanResult.booking, scanResult.status); setScanResult(null); setScanOpen(false); }}>View Full Details</Btn>
                   </div>
@@ -2540,6 +2550,7 @@ const OwnerBookings = ({ bookings, onViewBooking }) => {
                 <div className="text-left sm:text-right">
                   <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                   <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                  <Badge color={b.paymentStatus === "paid" ? "green" : "amber"}>{b.paymentStatus}</Badge>
                 </div>
                 <I n="chevronRight" s={18} c="text-gray-300" />
               </div>
@@ -2591,6 +2602,7 @@ const MyBookingsView = ({ bookings, onViewBooking }) => (
               <div className="text-left sm:text-right">
                 <div className="font-bold text-[#0f172a]">₦{b.total.toLocaleString()}</div>
                 <Badge color={b.status === "confirmed" ? "green" : "amber"}>{b.status}</Badge>
+                <Badge color={b.paymentStatus === "paid" ? "green" : "amber"}>{b.paymentStatus}</Badge>
               </div>
               <I n="chevronRight" s={18} c="text-gray-300" />
             </div>
@@ -2742,6 +2754,18 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
                   <DetailRow icon="clock" label="Booking type" value={cap(booking.type)} />
                   <DetailRow icon="briefcase" label="Quantity" value={`${booking.quantity} ${booking.type}${booking.quantity > 1 ? "s" : ""}`} />
                   <DetailRow icon="user" label="Booked by" value={booking.userName} />
+                  <DetailRow 
+                            icon="user" 
+                            label="Checked-In At" 
+                            value={
+                              booking.checked_in_at 
+                                ? new Date(booking.checked_in_at).toLocaleString("en-US", {
+                                    dateStyle: "medium",
+                                    timeStyle: "short",
+                                  })
+                                : "N/A" // Fallback value
+                            } 
+                          />
                 </div>
               </Card>
             </Reveal>
