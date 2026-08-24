@@ -3,4 +3,4 @@
 
 window.GOOGLE_MAPS_API_KEY = 'YOUR_MAPS_JS_API_KEY_HERE';
 // window.GOOGLE_CLIENT_ID = 'your-gsi-client-id.apps.googleusercontent.com';
-// window.API_BASE = 'https://workspot-backend.onrender.com/api';
+// window.API_BASE = 'https://workspots.alwaysdata.net/api';
