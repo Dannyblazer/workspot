@@ -59,6 +59,9 @@
   async function register(email, password, name, role) {
     return request('/auth/register', { method: 'POST', body: { email, password, name, role } });
   }
+  async function confirmEmail(token) {
+    return request('/auth/confirm-email?token=' + encodeURIComponent(token));
+  }
   async function login(email, password) {
     return request('/auth/login', { method: 'POST', body: { email, password } });
   }
@@ -218,7 +221,7 @@
   // Export to window
   window.api = {
     getToken, setToken, clearToken,
-    register, login, loginWithGoogle, me, updateEmail, updatePassword,
+    register, confirmEmail, login, loginWithGoogle, me, updateEmail, updatePassword,
     listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
     createBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,

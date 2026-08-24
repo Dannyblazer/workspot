@@ -1,8 +1,14 @@
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
 const routeFromHash = () => {
-  const parts = (window.location.hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
+  const rawHash = (window.location.hash || "").replace(/^#\/?/, "");
+  const [hashPath, hashQuery = ""] = rawHash.split("?");
+  const parts = hashPath.split("/").filter(Boolean);
   if (parts[0] === "workspace" && parts[1]) return { view: "workspace-details", id: parts[1] };
+  if ((window.location.pathname.replace(/\/$/, "") === "/confirm-email" && !parts[0]) || parts[0] === "confirm-email") {
+    const query = window.location.pathname.replace(/\/$/, "") === "/confirm-email" ? window.location.search : (hashQuery ? `?${hashQuery}` : "");
+    return { view: "confirm-email", token: new URLSearchParams(query).get("token") || "" };
+  }
   return { view: parts[0] || "landing" };
 };
 
@@ -273,6 +279,7 @@ const I = ({ n, s = 20, c = "" }) => {
     edit: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
     trash: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
     creditCard: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+    mail: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>,
     logout: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
     dashboard: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
     dollar: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
@@ -322,11 +329,13 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [signupSent, setSignupSent] = useState(false);
 
   // Reset form when modal opens (bug fix: state should reset between sessions)
   useEffect(() => {
     if (open) {
       setMode("login");
+      setSignupSent(false);
       setEmail("");
       setPassword("");
       setName("");
@@ -343,6 +352,10 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
       const res = mode === "login"
         ? await api.login(email, password)
         : await api.register(email, password, name || email.split("@")[0], "user");
+      if (mode === "signup" && res.requiresEmailConfirmation) {
+        setSignupSent(true);
+        return;
+      }
       api.setToken(res.token);
       onLogin(res.user);
       onClose();
@@ -414,6 +427,15 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
           <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
         </div>
         <div className="p-6">
+          {mode === "signup" && signupSent ? (
+            <div className="py-8 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-accent"><I n="mail" s={26} /></div>
+              <h3 className="mt-5 font-display text-2xl font-bold text-gray-900">Check your email</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">We sent a confirmation link to <span className="font-semibold text-gray-700">{email}</span>. Confirm your email, then sign in to continue.</p>
+              <button type="button" onClick={() => { setSignupSent(false); setMode("login"); }} className="mt-6 text-sm font-semibold text-brand-accent hover:underline">Go to sign in</button>
+            </div>
+          ) : (
+          <>
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <div>
@@ -465,6 +487,8 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
           </div>
           <div id="google-login-button" className="flex justify-center min-h-[44px]" />
           <div className="mt-4 text-center"><button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button></div>
+          </>
+          )}
         </div>
       </div>
     </div>
@@ -481,6 +505,7 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [googleError, setGoogleError] = useState("");
+  const [signupSent, setSignupSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -488,6 +513,10 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
     setLoading(true);
     try {
       const res = await api.register(email, password, name || email.split("@")[0], "owner");
+      if (res.requiresEmailConfirmation) {
+        setSignupSent(true);
+        return;
+      }
       api.setToken(res.token);
       onLogin(res.user);
     } catch (err) {
@@ -571,7 +600,12 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
 
         {/* Right: signup card */}
         <div className="bg-white rounded-card shadow-2xl w-full max-w-md justify-self-center lg:justify-self-end p-7">
-          <h2 className="font-display text-2xl font-bold tracking-tight text-brand">Create your host account</h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight text-brand">{signupSent ? "Check your email" : "Create your host account"}</h2>
+          {signupSent ? (
+            <div className="mt-4 rounded-xl bg-brand-soft p-4 text-sm leading-relaxed text-gray-600">We sent a confirmation link to <span className="font-semibold text-gray-800">{email}</span>. Confirm your email, then return here to sign in.</div>
+          ) : null}
+          {signupSent ? <button type="button" onClick={onSwitchToSignin} className="mt-5 text-sm font-semibold text-brand-accent hover:underline">Go to sign in</button> : null}
+          {!signupSent && <>
           <p className="text-sm text-gray-500 mt-1 mb-6">Already have one? <button type="button" onClick={onSwitchToSignin} className="text-brand-accent font-medium hover:underline">Sign in</button></p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" placeholder="John Doe" required /></div>
@@ -587,6 +621,7 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
             <div className="h-px flex-1 bg-gray-200" />
           </div>
           <div id="owner-google-button" className="flex justify-center min-h-[44px]" />
+          </>}
           <div className="mt-4 text-center"><button type="button" onClick={onCancel} className="text-sm text-gray-400 hover:text-gray-600">Back to home</button></div>
         </div>
       </div>
@@ -2460,6 +2495,34 @@ const OwnerWithdrawalsPage = ({ stats, onWithdraw }) => {
   );
 };
 
+// ==================== EMAIL CONFIRMATION PAGE ====================
+const ConfirmEmailPage = ({ token, onSignIn }) => {
+  const [status, setStatus] = useState(token ? "loading" : "error");
+  const [message, setMessage] = useState(token ? "Confirming your email..." : "This confirmation link is missing a token.");
+
+  useEffect(() => {
+    let active = true;
+    if (!token) return undefined;
+    api.confirmEmail(token)
+      .then(result => { if (active) { setStatus("success"); setMessage(result?.message || "Your email has been confirmed."); } })
+      .catch(err => { if (active) { setStatus("error"); setMessage(err?.message || "This confirmation link is invalid or expired."); } });
+    return () => { active = false; };
+  }, [token]);
+
+  const success = status === "success";
+  const loading = status === "loading";
+  return (
+    <div className="flex min-h-[calc(100vh-72px)] items-center justify-center bg-brand-soft px-4 py-12">
+      <Card className="w-full max-w-md p-7 text-center sm:p-9">
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${success ? "bg-emerald-50 text-emerald-600" : loading ? "bg-brand-soft text-brand-accent" : "bg-red-50 text-red-600"}`}><I n={success ? "check" : loading ? "mail" : "close"} s={30} /></div>
+        <h1 className="mt-6 font-display text-2xl font-bold text-slate-900">{loading ? "Confirming your email" : success ? "Email confirmed" : "Confirmation link unavailable"}</h1>
+        <p className="mt-3 text-sm leading-relaxed text-slate-500">{message}</p>
+        {success ? <Btn v="primary" s="lg" className="mt-7 w-full" onClick={onSignIn}>Continue to sign in</Btn> : !loading ? <Btn v="secondary" s="lg" className="mt-7 w-full" onClick={onSignIn}>Back to sign in</Btn> : null}
+      </Card>
+    </div>
+  );
+};
+
 // ==================== OWNER DASHBOARD ====================
 const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, onWithdraw }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
@@ -3028,6 +3091,7 @@ const Footer = () => (
 const App = () => {
   const [user, setUser] = useState(null);
   const [view, setView] = useState(() => routeFromHash().view);
+  const [confirmationToken, setConfirmationToken] = useState(() => routeFromHash().token || "");
   const [authOpen, setAuthOpen] = useState(false);
   const [bookingWorkspace, setBookingWorkspace] = useState(null);
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -3058,6 +3122,7 @@ const App = () => {
     const onHashChange = () => {
       const route = routeFromHash();
       setView(route.view);
+      setConfirmationToken(route.token || "");
       if (route.id) setSelectedWorkspace(workspaces.find(w => String(w.id) === String(route.id)) || null);
     };
     window.addEventListener("hashchange", onHashChange);
@@ -3073,11 +3138,15 @@ const App = () => {
     if (view === "workspace-details" && selectedWorkspace) {
       const target = `#/workspace/${selectedWorkspace.id}`;
       if (window.location.hash !== target) window.history.replaceState(null, "", target);
+    } else if (view === "confirm-email") {
+      // Keep the token-bearing confirmation URL intact so email links remain
+      // valid and refresh/share correctly.
+      return;
     } else if (view !== "workspace-details") {
       const target = `#/${view}`;
       if (window.location.hash !== target) window.history.replaceState(null, "", target);
     }
-  }, [view, selectedWorkspace]);
+  }, [view, selectedWorkspace, confirmationToken]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -3327,6 +3396,7 @@ const App = () => {
       case "listings": return <ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} />;
       case "how-it-works": return <HowItWorks />;
       case "owner-signup": return <OwnerSignupView onLogin={handleLogin} onCancel={() => setView("landing")} onSwitchToSignin={() => { setView("landing"); setAuthOpen(true); }} />;
+      case "confirm-email": return <ConfirmEmailPage token={confirmationToken} onSignIn={() => { setView("landing"); setAuthOpen(true); }} />;
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
       case "my-bookings": return <MyBookingsView bookings={bookings} onViewBooking={handleViewBooking} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;
