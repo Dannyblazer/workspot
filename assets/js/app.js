@@ -2497,17 +2497,25 @@ const OwnerWithdrawalsPage = ({ stats, onWithdraw }) => {
 
 // ==================== EMAIL CONFIRMATION PAGE ====================
 const ConfirmEmailPage = ({ token, onSignIn }) => {
-  const [status, setStatus] = useState(token ? "loading" : "error");
-  const [message, setMessage] = useState(token ? "Confirming your email..." : "This confirmation link is missing a token.");
+  const redirectedStatus = new URLSearchParams(window.location.search).get("status");
+  const statusMessages = {
+    success: "Your email has been confirmed.",
+    invalid: "This confirmation link is invalid or expired.",
+    missing: "This confirmation link is missing a token.",
+    error: "We could not confirm your email. Please try again.",
+  };
+  const recognizedStatus = Object.prototype.hasOwnProperty.call(statusMessages, redirectedStatus) ? redirectedStatus : "";
+  const [status, setStatus] = useState(recognizedStatus || (token ? "loading" : "missing"));
+  const [message, setMessage] = useState(recognizedStatus ? statusMessages[recognizedStatus] : (token ? "Confirming your email..." : statusMessages.missing));
 
   useEffect(() => {
     let active = true;
-    if (!token) return undefined;
+    if (recognizedStatus || !token) return undefined;
     api.confirmEmail(token)
       .then(result => { if (active) { setStatus("success"); setMessage(result?.message || "Your email has been confirmed."); } })
-      .catch(err => { if (active) { setStatus("error"); setMessage(err?.message || "This confirmation link is invalid or expired."); } });
+      .catch(() => { if (active) { setStatus("invalid"); setMessage(statusMessages.invalid); } });
     return () => { active = false; };
-  }, [token]);
+  }, [token, recognizedStatus]);
 
   const success = status === "success";
   const loading = status === "loading";
