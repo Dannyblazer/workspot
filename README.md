@@ -138,15 +138,6 @@ go run .
 
 On first boot the server connects to Postgres, runs the embedded migrations, and seeds demo data — all idempotent (tracked in `schema_migrations`). You should see `WorkSpot API listening on :8080`.
 
-`.env` keys:
-
-| Key | Default | Purpose |
-|-----|---------|---------|
-| `PORT` | `8080` | API listen port |
-| `DB_URL` | `postgres://…/workspot_db?sslmode=disable` | Postgres connection string |
-| `JWT_SECRET` | `dev-secret-change-me` | **Change in any real deployment** |
-| `CORS_ORIGIN` | `http://localhost:3000` | Allowed frontend origin |
-
 ### 2. Frontend
 
 Serve the project root with any static file server:
