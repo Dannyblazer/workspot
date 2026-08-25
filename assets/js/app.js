@@ -638,11 +638,14 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
-  const defaultStart = () => {
+  const defaultStart = (type = "hourly") => {
     const d = new Date();
-    d.setMinutes(0, 0, 0);
-    d.setHours(Math.max(d.getHours() + 1, 8));
-    return d.toISOString().slice(0, 16);
+    if (type === "hourly") {
+      d.setMinutes(0, 0, 0);
+      d.setHours(Math.max(d.getHours() + 1, 8));
+      return d.toISOString().slice(0, 16);
+    }
+    return d.toISOString().slice(0, 10);
   };
 
   // Reset state when modal opens (bug fix: state should reset between workspaces)
@@ -651,7 +654,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
       setBookingType(pricedTiers(workspace)[0] || "daily");
       setQuantity(1);
       setSeatCount(1);
-      setStartAt(defaultStart());
+      setStartAt(defaultStart(pricedTiers(workspace)[0] || "daily"));
       setStep(1);
       setSubmitting(false);
     }
@@ -660,6 +663,8 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
   if (!open || !workspace) return null;
 
   const typeLabels = { hourly: "Hours", daily: "Days", weekly: "Weeks", monthly: "Months" };
+  const isHourly = bookingType === "hourly";
+  const openingTime = workspace.opening_time || workspace.openingTime || "08:00";
   const total = (workspace.pricing[bookingType] || 0) * quantity;
   const fee = Math.round(total * (workspace.paymentProcessingFeeRate || 0));
   const grandTotal = total + fee;
@@ -670,8 +675,23 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
     if (bookingType === "daily") d.setDate(d.getDate() + quantity);
     if (bookingType === "weekly") d.setDate(d.getDate() + quantity * 7);
     if (bookingType === "monthly") d.setMonth(d.getMonth() + quantity);
-    return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    return isHourly
+      ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+      : d.toLocaleDateString([], { dateStyle: "medium" });
   })() : "—";
+
+  const selectBookingType = (type) => {
+    setBookingType(type);
+    setQuantity(1);
+    setStartAt(defaultStart(type));
+  };
+
+  // Daily, weekly, and monthly reservations are date-based. The API still
+  // receives a timestamp, anchored to the workspace opening time in Lagos.
+  const bookingStartAt = () => {
+    if (isHourly) return new Date(startAt).toISOString();
+    return `${startAt}T${openingTime}:00+01:00`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -689,7 +709,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Booking Type</label>
                 <div className="grid grid-cols-4 gap-2">
                   {pricedTiers(workspace).map(t => (
-                    <button key={t} onClick={() => { setBookingType(t); setQuantity(1); }} className={`rounded-control border-2 p-2 text-center ${bookingType === t ? "border-brand bg-brand-soft" : "border-gray-200"}`}>
+                    <button key={t} onClick={() => selectBookingType(t)} className={`rounded-control border-2 p-2 text-center ${bookingType === t ? "border-brand bg-brand-soft" : "border-gray-200"}`}>
                       <div className={`text-xs font-semibold capitalize ${bookingType === t ? "text-brand" : "text-gray-500"}`}>{t}</div>
                       <div className={`text-xs ${bookingType === t ? "text-brand" : "text-gray-400"}`}>₦{workspace.pricing[t].toLocaleString()}/per {TIER_UNIT[t]}</div>
                     </button>
@@ -709,9 +729,9 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div className="flex items-center gap-3"><button onClick={() => setSeatCount(Math.max(1, seatCount - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">-</button><span className="text-lg font-semibold w-12 text-center">{seatCount}</span><button onClick={() => setSeatCount(Math.min(Math.max(1, capacity), seatCount + 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button><span className="text-xs text-gray-400">of {capacity || "workspace capacity"}</span></div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start date and time</label>
-                <input type="datetime-local" value={startAt} onChange={e => setStartAt(e.target.value)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
-                <p className="mt-2 text-xs text-gray-500">Ends {endPreview} · Workspace timezone: Africa/Lagos</p>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{isHourly ? "Start date and time" : "Start date"}</label>
+                <input type={isHourly ? "datetime-local" : "date"} value={startAt} onChange={e => setStartAt(e.target.value)} min={isHourly ? new Date().toISOString().slice(0, 16) : new Date().toISOString().slice(0, 10)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                <p className="mt-2 text-xs text-gray-500">Ends {endPreview} · {isHourly ? "Workspace timezone: Africa/Lagos" : `Starts at ${openingTime} · Workspace timezone: Africa/Lagos`}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Subtotal</span><span className="font-medium">₦{total.toLocaleString()}</span></div>
@@ -732,7 +752,7 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
               </div>
               <Btn v="primary" s="lg" full disabled={submitting} onClick={async () => {
                 setSubmitting(true);
-                const completed = await onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: new Date(startAt).toISOString() });
+                const completed = await onBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: bookingStartAt() });
                 setSubmitting(false);
                 if (completed !== false) onClose();
               }}><I n="creditCard" s={18} /> {submitting ? "Confirming..." : `Confirm booking · ₦${grandTotal.toLocaleString()}`}</Btn>
