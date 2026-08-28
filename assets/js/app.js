@@ -9,6 +9,10 @@ const routeFromHash = () => {
     const query = window.location.pathname.replace(/\/$/, "") === "/confirm-email" ? window.location.search : (hashQuery ? `?${hashQuery}` : "");
     return { view: "confirm-email", token: new URLSearchParams(query).get("token") || "" };
   }
+  if ((window.location.pathname.replace(/\/$/, "") === "/reset-password" && !parts[0]) || parts[0] === "reset-password") {
+    const query = window.location.pathname.replace(/\/$/, "") === "/reset-password" ? window.location.search : (hashQuery ? `?${hashQuery}` : "");
+    return { view: "reset-password", token: new URLSearchParams(query).get("token") || "" };
+  }
   return { view: parts[0] || "landing" };
 };
 
@@ -280,6 +284,7 @@ const I = ({ n, s = 20, c = "" }) => {
     trash: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
     creditCard: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
     mail: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>,
+    lock: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>,
     logout: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
     dashboard: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
     dollar: <svg width={s} height={s} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
@@ -330,12 +335,14 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
   const [googleError, setGoogleError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [signupSent, setSignupSent] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // Reset form when modal opens (bug fix: state should reset between sessions)
   useEffect(() => {
     if (open) {
       setMode("login");
       setSignupSent(false);
+      setResetSent(false);
       setEmail("");
       setPassword("");
       setName("");
@@ -349,6 +356,11 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
     setError("");
     setLoading(true);
     try {
+      if (mode === "forgot") {
+        await api.forgotPassword(email.trim());
+        setResetSent(true);
+        return;
+      }
       const res = mode === "login"
         ? await api.login(email, password)
         : await api.register(email, password, name || email.split("@")[0], "user");
@@ -427,7 +439,25 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
           <button onClick={() => setMode("signup")} className={`flex-1 py-4 text-sm font-semibold tracking-tight ${mode === "signup" ? "text-brand border-b-2 border-brand" : "text-gray-400"}`}>Sign Up</button>
         </div>
         <div className="p-6">
-          {mode === "signup" && signupSent ? (
+          {mode === "forgot" && resetSent ? (
+            <div className="py-8 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-accent"><I n="mail" s={26} /></div>
+              <h3 className="mt-5 font-display text-2xl font-bold text-gray-900">Check your email</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">If an account exists for <span className="font-semibold text-gray-700">{email}</span>, we sent a password reset link.</p>
+              <button type="button" onClick={() => { setResetSent(false); setMode("login"); }} className="mt-6 text-sm font-semibold text-brand-accent hover:underline">Back to sign in</button>
+            </div>
+          ) : mode === "forgot" ? (
+            <div>
+              <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-5 flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900"><I n="arrowLeft" s={15} /> Back to sign in</button>
+              <h3 className="font-display text-2xl font-bold text-gray-900">Forgot your password?</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">Enter your account email and we’ll send you a secure reset link.</p>
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                <label className="block text-sm font-medium text-gray-700">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 px-4 py-2.5 outline-none focus:border-[#0f172a]" placeholder="you@example.com" required autoFocus /></label>
+                {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+                <Btn v="primary" s="lg" full disabled={loading}>{loading ? "Sending..." : "Send reset link"}</Btn>
+              </form>
+            </div>
+          ) : mode === "signup" && signupSent ? (
             <div className="py-8 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-accent"><I n="mail" s={26} /></div>
               <h3 className="mt-5 font-display text-2xl font-bold text-gray-900">Check your email</h3>
@@ -450,7 +480,7 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <div className="mb-1 flex items-center justify-between"><label className="block text-sm font-medium text-gray-700">Password</label>{mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); setGoogleError(""); }} className="text-xs font-semibold text-brand-accent hover:underline">Forgot password?</button>}</div>
               <div className="relative">
                 <input 
                   type={showPassword ? "text" : "password"} 
@@ -2551,6 +2581,39 @@ const ConfirmEmailPage = ({ token, onSignIn }) => {
   );
 };
 
+const ResetPasswordPage = ({ token, onSignIn }) => {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(token ? "" : "This reset link is missing a token.");
+  const [complete, setComplete] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!token) return;
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match."); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.resetPassword(token, password);
+      setComplete(true);
+    } catch (err) {
+      setError(err?.message || "This reset link is invalid or expired.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-[calc(100vh-72px)] items-center justify-center bg-brand-soft px-4 py-12">
+      <Card className="w-full max-w-md p-7 sm:p-9">
+        {complete ? <div className="text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><I n="check" s={30}/></div><h1 className="mt-6 font-display text-2xl font-bold text-slate-900">Password updated</h1><p className="mt-3 text-sm leading-relaxed text-slate-500">Your password has been reset. You can now sign in with your new password.</p><Btn v="primary" s="lg" className="mt-7 w-full" onClick={onSignIn}>Continue to sign in</Btn></div> : <><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft text-brand-accent"><I n="lock" s={22}/></div><h1 className="mt-5 font-display text-2xl font-bold text-slate-900">Create a new password</h1><p className="mt-2 text-sm text-slate-500">Choose a strong password you have not used before.</p><form onSubmit={submit} className="mt-7 space-y-4"><label className="block text-sm font-medium text-slate-700">New password<input type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} className="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-900" required /></label><label className="block text-sm font-medium text-slate-700">Confirm new password<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} minLength={8} className="mt-1.5 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-900" required /></label>{error && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}<Btn v="primary" s="lg" full disabled={submitting || !token}>{submitting ? "Updating..." : "Reset password"}</Btn>{!token && <button type="button" onClick={onSignIn} className="w-full text-center text-sm font-semibold text-brand-accent hover:underline">Back to sign in</button>}</form></>}
+      </Card>
+    </div>
+  );
+};
+
 // ==================== OWNER DASHBOARD ====================
 const OwnerDashboard = ({ ownerId, workspaces, bookings, stats, onAddWorkspace, onWithdraw }) => {
   const myWorkspaces = workspaces.filter(w => w.ownerId === ownerId);
@@ -3166,9 +3229,8 @@ const App = () => {
     if (view === "workspace-details" && selectedWorkspace) {
       const target = `#/workspace/${selectedWorkspace.id}`;
       if (window.location.hash !== target) window.history.replaceState(null, "", target);
-    } else if (view === "confirm-email") {
-      // Keep the token-bearing confirmation URL intact so email links remain
-      // valid and refresh/share correctly.
+    } else if (view === "confirm-email" || view === "reset-password") {
+      // Keep token-bearing email URLs intact so they refresh/share correctly.
       return;
     } else if (view !== "workspace-details") {
       const target = `#/${view}`;
@@ -3425,6 +3487,7 @@ const App = () => {
       case "how-it-works": return <HowItWorks />;
       case "owner-signup": return <OwnerSignupView onLogin={handleLogin} onCancel={() => setView("landing")} onSwitchToSignin={() => { setView("landing"); setAuthOpen(true); }} />;
       case "confirm-email": return <ConfirmEmailPage token={confirmationToken} onSignIn={() => { setView("landing"); setAuthOpen(true); }} />;
+      case "reset-password": return <ResetPasswordPage token={confirmationToken} onSignIn={() => { setView("landing"); setAuthOpen(true); }} />;
       case "discover": return <><Hero onSearch={() => setView("listings")} /><ListingsView workspaces={workspaces} onBook={handleBook} onToggleFav={handleToggleFav} favorites={favorites} onViewDetails={handleViewDetails} /></>;
       case "my-bookings": return <MyBookingsView bookings={bookings} onViewBooking={handleViewBooking} />;
       case "favorites": return <FavoritesView workspaces={workspaces} favorites={favorites} onBook={handleBook} onToggleFav={handleToggleFav} onViewDetails={handleViewDetails} />;

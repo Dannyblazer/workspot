@@ -65,6 +65,12 @@
   async function login(email, password) {
     return request('/auth/login', { method: 'POST', body: { email, password } });
   }
+  async function forgotPassword(email) {
+    return request('/auth/forgot-password', { method: 'POST', body: { email } });
+  }
+  async function resetPassword(token, password) {
+    return request('/auth/reset-password', { method: 'POST', body: { token, password } });
+  }
   async function me() {
     const data = await request('/auth/me', { auth: true });
     return data.user;
@@ -221,7 +227,7 @@
   // Export to window
   window.api = {
     getToken, setToken, clearToken,
-    register, confirmEmail, login, loginWithGoogle, me, updateEmail, updatePassword,
+    register, confirmEmail, login, forgotPassword, resetPassword, loginWithGoogle, me, updateEmail, updatePassword,
     listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
     createBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
