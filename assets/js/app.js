@@ -660,7 +660,7 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
 };
 
 // ==================== BOOKING MODAL ====================
-const BookingModal = ({ workspace, open, onClose, onBook }) => {
+const BookingModal = ({ workspace, open, onClose, onBook, validateBook}) => {
   const [bookingType, setBookingType] = useState("daily");
   const [quantity, setQuantity] = useState(1);
   const [seatCount, setSeatCount] = useState(1);
@@ -768,7 +768,13 @@ const BookingModal = ({ workspace, open, onClose, onBook }) => {
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Payment processing fee</span><span className="font-medium">₦{fee.toLocaleString()}</span></div>
                 <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between"><span className="font-semibold">Total</span><span className="font-bold text-lg">₦{grandTotal.toLocaleString()}</span></div>
               </div>
-              <Btn v="primary" s="lg" className="rounded-md" full onClick={() => setStep(2)} disabled={!startAt || !capacity || seatCount > capacity}>Continue to Payment <I n="arrowRight" s={16} /></Btn>
+              {/* <Btn v="primary" s="lg" className="rounded-md" full onClick={() => setStep(2)} disabled={!startAt || !capacity || seatCount > capacity}>Continue to Payment <I n="arrowRight" s={16} /></Btn> */}
+              <Btn v="primary" s="lg" className="rounded-md" full disabled={!startAt || !capacity || seatCount > capacity || submitting} onClick={async () => {
+                setSubmitting(true);
+                const completed = await validateBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: bookingStartAt() });
+                setSubmitting(false);
+                if (completed !== false) setStep(2);
+              }}><I n="creditCard" s={18} /> {submitting ? "Validating..." : `Validate booking · ₦${grandTotal.toLocaleString()}`}</Btn>
             </div>
           ) : (
             <div className="space-y-5">
@@ -831,6 +837,7 @@ const AddWorkspaceModal = ({ open, onClose, onAdd }) => {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
 
   // Reset form when modal opens (bug fix: stale form data between opens)
   useEffect(() => {
@@ -3344,6 +3351,21 @@ const App = () => {
     }
   };
 
+  const handleValidateBook = async (b) => {
+    try {
+      const booking = await api.checkBooking({ workspaceId: b.workspaceId, type: b.type, quantity: b.quantity, seatCount: b.seatCount, startAt: b.startAt });
+      //await api.confirmPayment(booking.id, "manual", `manual-${booking.id}`);
+      showToast(`Booking validated proceed to checkout`);
+      // Refetch so availability and booking lists reflect server truth.
+      await Promise.all([loadWorkspaces(), refreshBookings()]);
+      if (user?.role === "owner") await Promise.all([refreshOwnerStats(), loadManagementWorkspaces()]);
+      return true;
+    } catch (e) {
+      showToast(e.message);
+      return false;
+    }
+  };
+
   const handleToggleFav = async (id) => {
     if (!user) { setAuthOpen(true); return; }
     const isFav = favorites.includes(id);
@@ -3510,7 +3532,7 @@ const App = () => {
       <main style={{ flex: "1 0 auto" }}>{renderView()}</main>
       <Footer />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onLogin={handleLogin} onHostSignup={() => { setAuthOpen(false); setView("owner-signup"); }} />
-      <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} />
+      <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} validateBook={handleValidateBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
       <EditPricingModal workspace={editPricingWorkspace} open={editPricingOpen} onClose={() => setEditPricingOpen(false)} onSave={handleSavePricing} />

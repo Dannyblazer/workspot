@@ -163,6 +163,9 @@
   async function createBooking(booking) {
     return request('/bookings', { method: 'POST', auth: true, body: booking });
   }
+  async function checkBooking(booking) {
+    return request('/workspaces/check', { method: 'POST', auth: true, body: booking });
+  }
   // Temporary manual payment confirmation. Replace with provider-side
   // verification (for example Paystack) before accepting real payments.
   async function confirmPayment(bookingId, provider, reference) {
@@ -229,7 +232,7 @@
     getToken, setToken, clearToken,
     register, confirmEmail, login, forgotPassword, resetPassword, loginWithGoogle, me, updateEmail, updatePassword,
     listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
-    createBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
+    createBooking, checkBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
     adminStats, adminUsers, adminReports, updateAdminReport,
