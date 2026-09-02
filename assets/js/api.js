@@ -105,6 +105,10 @@
   async function getWorkspace(id) {
     return request('/workspaces/' + id);
   }
+  async function getWorkspaceAvailability(id, startAt, endAt) {
+    const params = new URLSearchParams({ startAt, endAt });
+    return request('/workspaces/' + encodeURIComponent(id) + '/availability?' + params.toString());
+  }
   async function getReviews(workspaceId) {
     return request('/workspaces/' + workspaceId + '/reviews');
   }
@@ -231,7 +235,7 @@
   window.api = {
     getToken, setToken, clearToken,
     register, confirmEmail, login, forgotPassword, resetPassword, loginWithGoogle, me, updateEmail, updatePassword,
-    listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
+    listWorkspaces, getWorkspace, getWorkspaceAvailability, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
     createBooking, checkBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
