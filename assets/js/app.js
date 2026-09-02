@@ -256,6 +256,26 @@ const BILLING_TYPES = ["hourly", "daily", "weekly", "monthly"];
 // Singular noun per tier (for "per day", "3 Days", etc.).
 const TIER_UNIT = { hourly: "hour", daily: "day", weekly: "week", monthly: "month" };
 
+// Build the interval used by the availability API. Date/time strings returned
+// here are also suitable as booking-modal defaults, so both surfaces stay on
+// the same searched period instead of silently falling back to "today".
+const workspaceAvailabilityRange = (workspace, rangeType, customStart, customEnd) => {
+  if (!workspace) return null;
+  const opening = workspace.opening_time || workspace.openingTime || "08:00";
+  const closing = workspace.closing_time || workspace.closingTime || "18:00";
+  if (rangeType === "custom") {
+    if (!customStart || !customEnd) return null;
+    return { startAt: `${customStart}:00+01:00`, endAt: `${customEnd}:00+01:00` };
+  }
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const year = Number(parts.find(p => p.type === "year")?.value);
+  const month = Number(parts.find(p => p.type === "month")?.value);
+  const day = Number(parts.find(p => p.type === "day")?.value) + (rangeType === "tomorrow" ? 1 : 0);
+  const date = new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
+  return { startAt: `${date}T${opening}:00+01:00`, endAt: `${date}T${closing}:00+01:00` };
+};
+
 const AMENITIES_LIST = [
   "WiFi", "Coffee", "Meeting Rooms", "Parking", "24/7 Access", "Printing",
   "Kitchen", "Bike Storage", "Event Space", "Mentorship", "Mail Handling",
@@ -660,13 +680,16 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
 };
 
 // ==================== BOOKING MODAL ====================
-const BookingModal = ({ workspace, open, onClose, onBook, validateBook}) => {
+const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialSelection }) => {
   const [bookingType, setBookingType] = useState("daily");
   const [quantity, setQuantity] = useState(1);
   const [seatCount, setSeatCount] = useState(1);
   const [startAt, setStartAt] = useState("");
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [liveAvailability, setLiveAvailability] = useState(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
 
   const defaultStart = (type = "hourly") => {
     const d = new Date();
@@ -678,27 +701,88 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook}) => {
     return d.toISOString().slice(0, 10);
   };
 
-  // Reset state when modal opens (bug fix: state should reset between workspaces)
+  const searchedStartForType = (type) => {
+    const suppliedStart = initialSelection?.startAt || "";
+    if (!suppliedStart) return "";
+    return type === "hourly" ? suppliedStart.slice(0, 16) : suppliedStart.slice(0, 10);
+  };
+
+  // Reset state when modal opens. A details-page availability search can seed
+  // the booking start date/time; direct card bookings keep the normal default.
   useEffect(() => {
     if (open && workspace) {
-      setBookingType(pricedTiers(workspace)[0] || "daily");
+      const initialType = pricedTiers(workspace)[0] || "daily";
+      const initialStart = searchedStartForType(initialType) || defaultStart(initialType);
+      setBookingType(initialType);
       setQuantity(1);
       setSeatCount(1);
-      setStartAt(defaultStart(pricedTiers(workspace)[0] || "daily"));
+      setStartAt(initialStart);
       setStep(1);
       setSubmitting(false);
+      setLiveAvailability(null);
+      setAvailabilityError("");
     }
-  }, [open, workspace?.id]);
+  }, [open, workspace?.id, initialSelection?.startAt, initialSelection?.endAt]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!open || !workspace || !startAt || !bookingType || !quantity) {
+      setAvailabilityLoading(false);
+      setLiveAvailability(null);
+      return undefined;
+    }
+    const openingTime = workspace.opening_time || workspace.openingTime || "08:00";
+    const start = bookingType === "hourly" ? new Date(startAt) : new Date(`${startAt}T${openingTime}:00+01:00`);
+    if (Number.isNaN(start.getTime())) {
+      setAvailabilityLoading(false);
+      setLiveAvailability(null);
+      return undefined;
+    }
+    const initialStartInput = searchedStartForType(bookingType);
+    const usesSearchedRange = Boolean(
+      initialSelection?.endAt &&
+      quantity === 1 &&
+      startAt === initialStartInput
+    );
+    const end = usesSearchedRange ? new Date(initialSelection.endAt) : new Date(start);
+    if (!usesSearchedRange) {
+      if (bookingType === "hourly") end.setHours(end.getHours() + quantity);
+      if (bookingType === "daily") end.setDate(end.getDate() + quantity);
+      if (bookingType === "weekly") end.setDate(end.getDate() + quantity * 7);
+      if (bookingType === "monthly") end.setMonth(end.getMonth() + quantity);
+    }
+    if (Number.isNaN(end.getTime()) || end <= start) {
+      setAvailabilityLoading(false);
+      setLiveAvailability(null);
+      return undefined;
+    }
+
+    setAvailabilityLoading(true);
+    setAvailabilityError("");
+    setLiveAvailability(null);
+    api.getWorkspaceAvailability(workspace.id, start.toISOString(), end.toISOString())
+      .then(result => {
+        if (cancelled) return;
+        setLiveAvailability(result);
+        const selected = result?.tiers?.find(item => item.tier === bookingType);
+        if (selected) setSeatCount(current => Math.min(current, Math.max(1, Number(selected.available) || 0)));
+      })
+      .catch(err => { if (!cancelled) { setLiveAvailability(null); setAvailabilityError(err?.message || "Live availability is unavailable."); } })
+      .finally(() => { if (!cancelled) setAvailabilityLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, workspace?.id, workspace?.opening_time, workspace?.openingTime, startAt, bookingType, quantity, initialSelection?.startAt, initialSelection?.endAt]);
 
   if (!open || !workspace) return null;
 
   const typeLabels = { hourly: "Hours", daily: "Days", weekly: "Weeks", monthly: "Months" };
   const isHourly = bookingType === "hourly";
   const openingTime = workspace.opening_time || workspace.openingTime || "08:00";
-  const total = (workspace.pricing[bookingType] || 0) * quantity;
+  const total = (workspace.pricing[bookingType] || 0) * quantity * seatCount;
   const fee = Math.round(total * (workspace.paymentProcessingFeeRate || 0));
   const grandTotal = total + fee;
-  const capacity = workspace.seatCapacity || workspace.capacity || workspace.availability?.daily?.total || 0;
+  const listedCapacity = workspace.seatCapacity || workspace.capacity || workspace.availability?.[bookingType]?.total || workspace.availability?.daily?.total || 0;
+  const liveTier = liveAvailability?.tiers?.find(item => item.tier === bookingType);
+  const capacity = liveTier ? Number(liveTier.available) || 0 : listedCapacity;
   const endPreview = startAt ? (() => {
     const d = new Date(startAt);
     if (bookingType === "hourly") d.setHours(d.getHours() + quantity);
@@ -713,7 +797,15 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook}) => {
   const selectBookingType = (type) => {
     setBookingType(type);
     setQuantity(1);
-    setStartAt(defaultStart(type));
+    setStartAt(searchedStartForType(type) || defaultStart(type));
+    setLiveAvailability(null);
+    setAvailabilityError("");
+  };
+
+  const changeQuantity = (next) => {
+    setQuantity(Math.max(1, next));
+    setLiveAvailability(null);
+    setAvailabilityError("");
   };
 
   // Daily, weekly, and monthly reservations are date-based. The API still
@@ -749,18 +841,18 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook}) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Duration ({typeLabels[bookingType]})</label>
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">-</button>
+                  <button onClick={() => changeQuantity(quantity - 1)} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">-</button>
                   <span className="text-lg font-semibold w-12 text-center">{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button>
+                  <button onClick={() => changeQuantity(quantity + 1)} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Seats</label>
-                <div className="flex items-center gap-3"><button onClick={() => setSeatCount(Math.max(1, seatCount - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">-</button><span className="text-lg font-semibold w-12 text-center">{seatCount}</span><button onClick={() => setSeatCount(Math.min(Math.max(1, capacity), seatCount + 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50">+</button><span className="text-xs text-gray-400">of {capacity || "workspace capacity"}</span></div>
+                <div className="flex items-center gap-3"><button disabled={seatCount <= 1 || availabilityLoading} onClick={() => setSeatCount(Math.max(1, seatCount - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">-</button><span className="text-lg font-semibold w-12 text-center">{seatCount}</span><button disabled={availabilityLoading || capacity < 1 || seatCount >= capacity} onClick={() => setSeatCount(Math.min(capacity, seatCount + 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">+</button><span className="text-xs text-gray-400">{availabilityLoading ? "Checking..." : `${capacity} available`}</span></div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{isHourly ? "Start date and time" : "Start date"}</label>
-                <input type={isHourly ? "datetime-local" : "date"} value={startAt} onChange={e => setStartAt(e.target.value)} min={isHourly ? new Date().toISOString().slice(0, 16) : new Date().toISOString().slice(0, 10)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                <input type={isHourly ? "datetime-local" : "date"} value={startAt} onChange={e => { setStartAt(e.target.value); setLiveAvailability(null); setAvailabilityError(""); }} min={isHourly ? new Date().toISOString().slice(0, 16) : new Date().toISOString().slice(0, 10)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
                 <p className="mt-2 text-xs text-gray-500">Ends {endPreview} · {isHourly ? "Workspace timezone: Africa/Lagos" : `Starts at ${openingTime} · Workspace timezone: Africa/Lagos`}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
@@ -768,8 +860,8 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook}) => {
                 <div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Payment processing fee</span><span className="font-medium">₦{fee.toLocaleString()}</span></div>
                 <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between"><span className="font-semibold">Total</span><span className="font-bold text-lg">₦{grandTotal.toLocaleString()}</span></div>
               </div>
-              {/* <Btn v="primary" s="lg" className="rounded-md" full onClick={() => setStep(2)} disabled={!startAt || !capacity || seatCount > capacity}>Continue to Payment <I n="arrowRight" s={16} /></Btn> */}
-              <Btn v="primary" s="lg" className="rounded-md" full disabled={!startAt || !capacity || seatCount > capacity || submitting} onClick={async () => {
+              {availabilityError && <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">{availabilityError} Showing listed capacity until live availability is available.</p>}
+              <Btn v="primary" s="lg" className="rounded-md" full disabled={!startAt || !capacity || seatCount > capacity || submitting || availabilityLoading} onClick={async () => {
                 setSubmitting(true);
                 const completed = await validateBook({ workspaceId: workspace.id, workspaceName: workspace.name, type: bookingType, quantity, seatCount, startAt: bookingStartAt() });
                 setSubmitting(false);
@@ -1256,6 +1348,12 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, onRep
   const [activeImage, setActiveImage] = useState(0);
   const [activeTab, setActiveTab] = useState("overview");
   const [workspaceReviews, setWorkspaceReviews] = useState([]);
+  const [availability, setAvailability] = useState(null);
+  const [availabilityRange, setAvailabilityRange] = useState("today");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
 
   // Fetch reviews from the API whenever the workspace changes.
   useEffect(() => {
@@ -1268,7 +1366,25 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, onRep
     return () => { cancelled = true; };
   }, [workspace?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!workspace) return undefined;
+    const selectedRange = workspaceAvailabilityRange(workspace, availabilityRange, customStart, customEnd);
+    if (!selectedRange) return undefined;
+
+    setAvailabilityLoading(true);
+    setAvailabilityError("");
+    setAvailability(null);
+    api.getWorkspaceAvailability(workspace.id, selectedRange.startAt, selectedRange.endAt)
+      .then(result => { if (!cancelled) setAvailability(result); })
+      .catch(err => { if (!cancelled) { setAvailability(null); setAvailabilityError(err?.message || "Unable to load live availability."); } })
+      .finally(() => { if (!cancelled) setAvailabilityLoading(false); });
+    return () => { cancelled = true; };
+  }, [workspace?.id, workspace?.opening_time, workspace?.openingTime, workspace?.closing_time, workspace?.closingTime, availabilityRange, customStart, customEnd]);
+
   if (!workspace) return null;
+
+  const selectedAvailabilityRange = workspaceAvailabilityRange(workspace, availabilityRange, customStart, customEnd);
 
   const avgRating = workspaceReviews.length > 0 ? (workspaceReviews.reduce((a, b) => a + b.rating, 0) / workspaceReviews.length).toFixed(1) : workspace.rating;
 
@@ -1386,17 +1502,21 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, onRep
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-lg mb-3">Availability</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div><h3 className="font-bold text-lg">Availability</h3><p className="mt-1 text-xs text-gray-500">Live seats reserved for a selected period.</p></div>
+                      <select value={availabilityRange} onChange={e => { setAvailabilityRange(e.target.value); setAvailability(null); setAvailabilityError(""); }} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none sm:w-auto"><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="custom">Custom range</option></select>
+                    </div>
+                    {availabilityRange === "custom" && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-gray-500">From<input type="datetime-local" value={customStart} onChange={e => { setCustomStart(e.target.value); setAvailability(null); setAvailabilityError(""); }} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none" /></label><label className="text-xs font-medium text-gray-500">To<input type="datetime-local" value={customEnd} onChange={e => { setCustomEnd(e.target.value); setAvailability(null); setAvailabilityError(""); }} className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none" /></label></div>}
+                    {availabilityLoading && <div className="mt-4 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">Checking live availability...</div>}
+                    {availabilityError && <div className="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">{availabilityError} Showing the latest listed capacity.</div>}
+                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
                       {BILLING_TYPES.map(t => {
-                        const avail = workspace.availability[t].total - workspace.availability[t].booked;
-                        return (
-                          <div key={t} className="text-center p-3 bg-gray-50 rounded-lg">
-                            <div className="text-xs text-gray-500 capitalize">{t}</div>
-                            <div className={`text-sm font-semibold ${avail > 0 ? "text-emerald-600" : "text-red-500"}`}>{avail} available</div>
-                            <div className="text-xs text-gray-400">{workspace.availability[t].booked} booked</div>
-                          </div>
-                        );
+                        const live = availability?.tiers?.find(item => item.tier === t);
+                        const fallback = workspace.availability?.[t] || {};
+                        const capacity = live?.capacity ?? fallback.total ?? 0;
+                        const reserved = live?.reserved ?? fallback.booked ?? 0;
+                        const available = live?.available ?? Math.max(0, capacity - reserved);
+                        return <div key={t} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs capitalize text-gray-500">{t}</div><div className={`text-sm font-semibold ${available > 0 ? "text-emerald-600" : "text-red-500"}`}>{available} available</div><div className="text-xs text-gray-400">{reserved} reserved · {capacity} capacity</div></div>;
                       })}
                     </div>
                   </div>
@@ -1482,7 +1602,7 @@ const WorkspaceDetails = ({ workspace, onBack, onBook, onToggleFav, isFav, onRep
                 </div>
               </div>
 
-              <Btn v="primary" s="lg" className="rounded-md" full onClick={() => onBook(workspace)}>Book Now</Btn>
+              <Btn v="primary" s="lg" className="rounded-md" full onClick={() => onBook(workspace, selectedAvailabilityRange ? { startAt: selectedAvailabilityRange.startAt, endAt: selectedAvailabilityRange.endAt, rangeType: availabilityRange } : null)}>Book Now</Btn>
 
               {directionsUrl(workspace) && (
                 <button onClick={() => window.open(directionsUrl(workspace), '_blank', 'noopener')} className="ws-hover mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:border-brand hover:text-brand">
@@ -3192,6 +3312,7 @@ const App = () => {
   const [confirmationToken, setConfirmationToken] = useState(() => routeFromHash().token || "");
   const [authOpen, setAuthOpen] = useState(false);
   const [bookingWorkspace, setBookingWorkspace] = useState(null);
+  const [bookingSelection, setBookingSelection] = useState(null);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [addWorkspaceOpen, setAddWorkspaceOpen] = useState(false);
   const [editAvailWorkspace, setEditAvailWorkspace] = useState(null);
@@ -3326,13 +3447,17 @@ const App = () => {
     setOwnerStats(null);
     setManagementWorkspaces([]);
     setAdminData({ stats: null, users: [], reports: [] });
+    setBookingWorkspace(null);
+    setBookingSelection(null);
+    setBookingOpen(false);
     setView("landing");
     showToast("Signed out successfully");
   };
 
-  const handleBook = (ws) => {
+  const handleBook = (ws, selection = null) => {
     if (!user) { setAuthOpen(true); return; }
     setBookingWorkspace(ws);
+    setBookingSelection(selection);
     setBookingOpen(true);
   };
 
@@ -3532,7 +3657,7 @@ const App = () => {
       <main style={{ flex: "1 0 auto" }}>{renderView()}</main>
       <Footer />
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onLogin={handleLogin} onHostSignup={() => { setAuthOpen(false); setView("owner-signup"); }} />
-      <BookingModal workspace={bookingWorkspace} open={bookingOpen} onClose={() => setBookingOpen(false)} onBook={handleConfirmBook} validateBook={handleValidateBook} />
+      <BookingModal workspace={bookingWorkspace} initialSelection={bookingSelection} open={bookingOpen} onClose={() => { setBookingOpen(false); setBookingSelection(null); }} onBook={handleConfirmBook} validateBook={handleValidateBook} />
       <AddWorkspaceModal open={addWorkspaceOpen} onClose={() => setAddWorkspaceOpen(false)} onAdd={handleAddWorkspace} />
       <EditAvailabilityModal workspace={editAvailWorkspace} open={editAvailOpen} onClose={() => setEditAvailOpen(false)} onSave={handleSaveAvailability} />
       <EditPricingModal workspace={editPricingWorkspace} open={editPricingOpen} onClose={() => setEditPricingOpen(false)} onSave={handleSavePricing} />
