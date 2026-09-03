@@ -696,7 +696,9 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
     if (type === "hourly") {
       d.setMinutes(0, 0, 0);
       d.setHours(Math.max(d.getHours() + 1, 8));
-      return d.toISOString().slice(0, 16);
+      const date = d.toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
+      const hour = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", hour: "2-digit", hour12: false }).format(d).padStart(2, "0");
+      return `${date}T${hour}:00`;
     }
     return d.toISOString().slice(0, 10);
   };
@@ -704,7 +706,7 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
   const searchedStartForType = (type) => {
     const suppliedStart = initialSelection?.startAt || "";
     if (!suppliedStart) return "";
-    return type === "hourly" ? suppliedStart.slice(0, 16) : suppliedStart.slice(0, 10);
+    return type === "hourly" ? `${suppliedStart.slice(0, 13)}:00` : suppliedStart.slice(0, 10);
   };
 
   // Reset state when modal opens. A details-page availability search can seed
@@ -732,7 +734,7 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
       return undefined;
     }
     const openingTime = workspace.opening_time || workspace.openingTime || "08:00";
-    const start = bookingType === "hourly" ? new Date(startAt) : new Date(`${startAt}T${openingTime}:00+01:00`);
+    const start = bookingType === "hourly" ? new Date(`${startAt}:00+01:00`) : new Date(`${startAt}T${openingTime}:00+01:00`);
     if (Number.isNaN(start.getTime())) {
       setAvailabilityLoading(false);
       setLiveAvailability(null);
@@ -777,6 +779,8 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
   const typeLabels = { hourly: "Hours", daily: "Days", weekly: "Weeks", monthly: "Months" };
   const isHourly = bookingType === "hourly";
   const openingTime = workspace.opening_time || workspace.openingTime || "08:00";
+  const todayLagos = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
+  const currentLagosHour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", hour: "2-digit", hour12: false }).format(new Date()));
   const total = (workspace.pricing[bookingType] || 0) * quantity * seatCount;
   const fee = Math.round(total * (workspace.paymentProcessingFeeRate || 0));
   const grandTotal = total + fee;
@@ -784,13 +788,13 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
   const liveTier = liveAvailability?.tiers?.find(item => item.tier === bookingType);
   const capacity = liveTier ? Number(liveTier.available) || 0 : listedCapacity;
   const endPreview = startAt ? (() => {
-    const d = new Date(startAt);
+    const d = isHourly ? new Date(`${startAt}:00+01:00`) : new Date(`${startAt}T${openingTime}:00+01:00`);
     if (bookingType === "hourly") d.setHours(d.getHours() + quantity);
     if (bookingType === "daily") d.setDate(d.getDate() + quantity);
     if (bookingType === "weekly") d.setDate(d.getDate() + quantity * 7);
     if (bookingType === "monthly") d.setMonth(d.getMonth() + quantity);
     return isHourly
-      ? d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
+      ? d.toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "numeric" })
       : d.toLocaleDateString([], { dateStyle: "medium" });
   })() : "—";
 
@@ -811,7 +815,7 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
   // Daily, weekly, and monthly reservations are date-based. The API still
   // receives a timestamp, anchored to the workspace opening time in Lagos.
   const bookingStartAt = () => {
-    if (isHourly) return new Date(startAt).toISOString();
+    if (isHourly) return new Date(`${startAt}:00+01:00`).toISOString();
     return `${startAt}T${openingTime}:00+01:00`;
   };
 
@@ -851,8 +855,17 @@ const BookingModal = ({ workspace, open, onClose, onBook, validateBook, initialS
                 <div className="flex items-center gap-3"><button disabled={seatCount <= 1 || availabilityLoading} onClick={() => setSeatCount(Math.max(1, seatCount - 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">-</button><span className="text-lg font-semibold w-12 text-center">{seatCount}</span><button disabled={availabilityLoading || capacity < 1 || seatCount >= capacity} onClick={() => setSeatCount(Math.min(capacity, seatCount + 1))} className="w-10 h-10 rounded-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">+</button><span className="text-xs text-gray-400">{availabilityLoading ? "Checking..." : `${capacity} available`}</span></div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{isHourly ? "Start date and time" : "Start date"}</label>
-                <input type={isHourly ? "datetime-local" : "date"} value={startAt} onChange={e => { setStartAt(e.target.value); setLiveAvailability(null); setAvailabilityError(""); }} min={isHourly ? new Date().toISOString().slice(0, 16) : new Date().toISOString().slice(0, 10)} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">{isHourly ? "Start date and hour" : "Start date"}</label>
+                {isHourly ? (
+                  <div className="grid grid-cols-[1fr_8rem] gap-3">
+                    <input type="date" value={startAt.slice(0, 10)} onChange={e => { setStartAt(`${e.target.value}T${startAt.slice(11, 13) || "08"}:00`); setLiveAvailability(null); setAvailabilityError(""); }} min={new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" })} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                    <select value={startAt.slice(11, 13)} onChange={e => { setStartAt(`${startAt.slice(0, 10)}T${e.target.value}:00`); setLiveAvailability(null); setAvailabilityError(""); }} className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white focus:border-[#0f172a] outline-none">
+                      {Array.from({ length: 24 }, (_, hour) => { const value = String(hour).padStart(2, "0"); const label = new Date(2000, 0, 1, hour).toLocaleTimeString([], { hour: "numeric" }); const isPast = startAt.slice(0, 10) === todayLagos && hour <= currentLagosHour; return <option key={value} value={value} disabled={isPast}>{label}</option>; })}
+                    </select>
+                  </div>
+                ) : (
+                  <input type="date" value={startAt} onChange={e => { setStartAt(e.target.value); setLiveAvailability(null); setAvailabilityError(""); }} min={new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" })} className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:border-[#0f172a] outline-none" />
+                )}
                 <p className="mt-2 text-xs text-gray-500">Ends {endPreview} · {isHourly ? "Workspace timezone: Africa/Lagos" : `Starts at ${openingTime} · Workspace timezone: Africa/Lagos`}</p>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
@@ -3098,6 +3111,13 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
     return dt.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   };
 
+  const fmtHour = (value) => {
+    if (!value) return "—";
+    const dt = new Date(value);
+    if (isNaN(dt.getTime())) return "—";
+    return dt.toLocaleTimeString("en-US", { hour: "numeric", timeZone: "Africa/Lagos" });
+  };
+
   const statusMap = {
     confirmed: { color: "green", label: "Confirmed", note: "Your space is reserved." },
     pending: { color: "amber", label: "Pending", note: "Awaiting confirmation." },
@@ -3194,6 +3214,7 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
                 <h2 className="font-display text-sm font-bold uppercase tracking-widest text-gray-400 mb-5">Details</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <DetailRow icon="calendar" label="Date" value={fmtDate(booking.date)} />
+                  <DetailRow icon="clock" label="Start hour" value={fmtHour(booking.startAt || booking.start_at)} />
                   <DetailRow icon="clock" label="Booking type" value={cap(booking.type)} />
                   <DetailRow icon="briefcase" label="Quantity" value={`${booking.quantity} ${booking.type}${booking.quantity > 1 ? "s" : ""}`} />
                   <DetailRow icon="user" label="Booked by" value={booking.userName} />
@@ -3412,21 +3433,26 @@ const App = () => {
 
   // On mount: load public workspaces and restore a session if a token exists.
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      await loadWorkspaces();
-      const initialRoute = routeFromHash();
-      if (initialRoute.id) setSelectedWorkspace((current) => workspaces.find(w => String(w.id) === String(initialRoute.id)) || current);
-      if (api.getToken()) {
-        try {
-          const u = await api.me();
-          setUser(u);
-          await loadUserData(u);
-        } catch (e) {
-          api.clearToken();
+      try {
+        await loadWorkspaces();
+        const initialRoute = routeFromHash();
+        if (initialRoute.id) setSelectedWorkspace((current) => workspaces.find(w => String(w.id) === String(initialRoute.id)) || current);
+        if (api.getToken()) {
+          try {
+            const u = await api.me();
+            setUser(u);
+            await loadUserData(u);
+          } catch (e) {
+            api.clearToken();
+          }
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, []);
 
   // Called by AuthModal after a successful login/register (token already set).

@@ -18,12 +18,16 @@
 
   // Generic request wrapper
   async function request(path, options = {}) {
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs || 15000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const config = {
       method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      signal: controller.signal,
     };
 
     if (options.auth) {
@@ -37,8 +41,19 @@
       config.body = JSON.stringify(options.body);
     }
 
-    const res = await fetch(API_BASE + path, config);
-    const raw = await res.text();
+    let res;
+    let raw;
+    try {
+      res = await fetch(API_BASE + path, config);
+      raw = await res.text();
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     let data;
     try {
       data = raw ? JSON.parse(raw) : null;
