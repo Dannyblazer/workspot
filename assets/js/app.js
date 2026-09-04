@@ -74,6 +74,24 @@ const loadGoogleMaps = () => {
   return _googleMapsPromise;
 };
 
+// Load Google Identity Services only when an auth surface is opened. Keeping
+// this third-party script out of the initial document prevents a slow Google
+// response from leaving the browser tab in a loading state for every visitor.
+let _googleIdentityPromise = null;
+const loadGoogleIdentity = () => {
+  if (typeof window !== "undefined" && window.google && window.google.accounts) return Promise.resolve(window.google);
+  if (_googleIdentityPromise) return _googleIdentityPromise;
+  _googleIdentityPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => window.google && window.google.accounts ? resolve(window.google) : reject(new Error("Google Sign-In is not available"));
+    script.onerror = () => { _googleIdentityPromise = null; reject(new Error("Google Sign-In is not available")); };
+    document.head.appendChild(script);
+  });
+  return _googleIdentityPromise;
+};
+
 // Google Maps directions deep link from stored coordinates (no backend call).
 const directionsUrl = (w, origin) => {
   if (!w || w.latitude == null || w.longitude == null) return null;
@@ -428,26 +446,21 @@ const AuthModal = ({ open, onClose, onLogin, onHostSignup }) => {
   useEffect(() => {
     if (!open) return;
     const clientId = window.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-    if (typeof google === 'undefined' || !google.accounts) {
-      setGoogleError("Google Sign-In is not available");
-      return;
-    }
-    // The button div mounts with the modal; wait a tick so it exists.
+    let cancelled = false;
+    // The button div mounts with the modal; load GIS and wait a tick so it exists.
     const id = setTimeout(() => {
       const target = document.getElementById("google-login-button");
       if (!target || target.childElementCount > 0) return;
-      try {
+      loadGoogleIdentity().then(() => {
+        if (cancelled || !target || target.childElementCount > 0) return;
         google.accounts.id.initialize({ client_id: clientId, callback: (resp) => googleHandlerRef.current(resp) });
         google.accounts.id.renderButton(target, {
           theme: "outline", size: "large", text: "continue_with",
           shape: "rectangular", logo_alignment: "center", width: 320,
         });
-      } catch (err) {
-        console.error("Google Identity Services initialization failed:", err);
-        setGoogleError("Google Sign-In is not available");
-      }
+      }).catch(err => { if (!cancelled) setGoogleError(err.message || "Google Sign-In is not available"); });
     }, 0);
-    return () => clearTimeout(id);
+    return () => { cancelled = true; clearTimeout(id); };
   }, [open]);
 
   if (!open) return null;
@@ -599,22 +612,20 @@ const OwnerSignupView = ({ onLogin, onCancel, onSwitchToSignin }) => {
   // Render the Google button once the target div mounts.
   useEffect(() => {
     const clientId = window.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
-    if (typeof google === 'undefined' || !google.accounts) { setGoogleError("Google Sign-In is not available"); return; }
+    let cancelled = false;
     const id = setTimeout(() => {
       const target = document.getElementById("owner-google-button");
       if (!target || target.childElementCount > 0) return;
-      try {
+      loadGoogleIdentity().then(() => {
+        if (cancelled || !target || target.childElementCount > 0) return;
         google.accounts.id.initialize({ client_id: clientId, callback: (resp) => googleHandlerRef.current(resp) });
         google.accounts.id.renderButton(target, {
           theme: "outline", size: "large", text: "continue_with",
           shape: "rectangular", logo_alignment: "center", width: 320,
         });
-      } catch (err) {
-        console.error("Google Identity Services initialization failed:", err);
-        setGoogleError("Google Sign-In is not available");
-      }
+      }).catch(err => { if (!cancelled) setGoogleError(err.message || "Google Sign-In is not available"); });
     }, 0);
-    return () => clearTimeout(id);
+    return () => { cancelled = true; clearTimeout(id); };
   }, []);
 
   const benefits = [
@@ -3083,7 +3094,7 @@ const DetailRow = ({ icon, label, value }) => (
   </div>
 );
 
-const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, currentUser, onSubmitReview }) => {
+const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, currentUser, onSubmitReview, onCancelBooking, showToast }) => {
   const [booking, setBooking] = useState(initialBooking || null);
   const [loading, setLoading] = useState(!initialBooking);
   const [error, setError] = useState("");
@@ -3092,6 +3103,8 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [reviewError, setReviewError] = useState("");
+  const [cancelSaving, setCancelSaving] = useState(false);
+  const [cancelError, setCancelError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -3135,8 +3148,29 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
   };
   const vd = validation ? (validationMap[validation] || { icon: "flag", title: cap(validation), note: "", cls: "bg-gray-50 border-gray-200", iconC: "text-gray-500", titleC: "text-gray-800" }) : null;
   const visitHasEnded = booking?.date && booking.date < new Date().toISOString().slice(0, 10);
+  const isPaid = String(booking?.paymentStatus || booking?.payment_status || "").toLowerCase() === "paid";
   const canReview = currentUser?.role === "user" && booking?.userId === currentUser.id &&
+    isPaid &&
     (booking.status === "completed" || (booking.status === "confirmed" && visitHasEnded));
+  const canCancel = currentUser?.role === "user" && booking?.userId === currentUser.id &&
+    isPaid && booking?.status === "confirmed";
+
+  const cancelBooking = async () => {
+    if (!canCancel || cancelSaving) return;
+    if (!window.confirm("Cancel this booking? Any refund will follow the cancellation policy.")) return;
+    setCancelSaving(true);
+    setCancelError("");
+    try {
+      const result = await onCancelBooking(booking.id);
+      setBooking(current => ({ ...current, status: "cancelled" }));
+      const refundAmount = Number(result?.refundAmount || 0);
+      if (showToast) showToast(refundAmount > 0 ? `Booking cancelled. Refund: ${naira(refundAmount)}.` : "Booking cancelled.");
+    } catch (e) {
+      setCancelError(e.message || "Could not cancel this booking.");
+    } finally {
+      setCancelSaving(false);
+    }
+  };
 
   const submitReview = async () => {
     if (!reviewRating) { setReviewError("Choose a star rating before submitting."); return; }
@@ -3247,8 +3281,24 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
                 </div>
               </Card>
             </Reveal>
+            {canCancel && (
+              <Reveal delay={3} className="mb-6">
+                <Card className="border border-red-100 bg-red-50/40 p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="font-display text-lg font-bold text-gray-900">Need to cancel?</h2>
+                      <p className="mt-1 text-sm text-gray-500">Your refund, if applicable, follows the cancellation policy.</p>
+                    </div>
+                    <Btn v="danger" disabled={cancelSaving} onClick={cancelBooking}>
+                      {cancelSaving ? "Cancelling..." : "Cancel booking"}
+                    </Btn>
+                  </div>
+                  {cancelError && <p className="mt-3 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-600">{cancelError}</p>}
+                </Card>
+              </Reveal>
+            )}
             {canReview && (
-              <Reveal delay={3}>
+              <Reveal delay={canCancel ? 4 : 3}>
                 <Card className="p-6">
                   {reviewSubmitted ? (
                     <div className="flex items-start gap-3">
@@ -3266,7 +3316,7 @@ const BookingDetailsView = ({ bookingId, initialBooking, onBack, validation, cur
                       <textarea value={reviewText} onChange={e => setReviewText(e.target.value.slice(0, 1000))} rows={4} placeholder="What stood out about the space, service, or amenities?" className="mt-2 w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm outline-none transition-colors focus:border-gray-900" />
                       <div className="mt-1 text-right text-xs text-gray-400">{reviewText.length}/1000</div>
                       {reviewError && <p className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{reviewError}</p>}
-                      <Btn v="primary" className="mt-4" disabled={reviewSaving} onClick={submitReview}>{reviewSaving ? "Submitting..." : "Submit review"}</Btn>
+                      <Btn v="primary" className="mt-4 rounded-md" disabled={reviewSaving} onClick={submitReview}>{reviewSaving ? "Submitting..." : "Submit review"}</Btn>
                     </>
                   )}
                 </Card>
@@ -3439,6 +3489,10 @@ const App = () => {
         await loadWorkspaces();
         const initialRoute = routeFromHash();
         if (initialRoute.id) setSelectedWorkspace((current) => workspaces.find(w => String(w.id) === String(initialRoute.id)) || current);
+        // Public content is enough to finish the initial page load. Restore a
+        // session and hydrate dashboards in the background so a slow optional
+        // endpoint cannot keep the page's loading lifecycle open.
+        if (!cancelled) setLoading(false);
         if (api.getToken()) {
           try {
             const u = await api.me();
@@ -3448,6 +3502,10 @@ const App = () => {
             api.clearToken();
           }
         }
+      } catch (e) {
+        // Individual loaders normally handle their own errors, but keep a
+        // failed bootstrap from becoming an unhandled promise rejection.
+        if (!cancelled) showToast(e?.message || "Unable to finish loading account data.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -3515,6 +3573,13 @@ const App = () => {
       showToast(e.message);
       return false;
     }
+  };
+
+  const handleCancelBooking = async (bookingId) => {
+    const result = await api.cancelBooking(bookingId);
+    await Promise.all([refreshBookings(), loadWorkspaces()]);
+    if (user?.role === "owner") await Promise.all([refreshOwnerStats(), loadManagementWorkspaces()]);
+    return result;
   };
 
   const handleToggleFav = async (id) => {
@@ -3669,7 +3734,7 @@ const App = () => {
       case "owner-bookings": return <OwnerBookings bookings={bookings} onViewBooking={handleViewBooking} />;
       case "owner-withdrawals": return <OwnerWithdrawalsPage stats={ownerStats} onWithdraw={handleWithdraw} />;
       case "workspace-details": return selectedWorkspace ? <WorkspaceDetails workspace={selectedWorkspace} onBack={handleBackFromDetails} onBook={handleBook} onToggleFav={handleToggleFav} isFav={favorites.includes(selectedWorkspace?.id)} onReport={(w) => user ? setReportWorkspace(w) : setAuthOpen(true)} /> : <div className="py-24 text-center text-slate-500">Loading workspace...</div>;
-      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} currentUser={user} onSubmitReview={handleSubmitReview} onBack={handleBackFromBooking} />;
+      case "booking-details": return <BookingDetailsView bookingId={selectedBooking?.id} initialBooking={selectedBooking} validation={bookingValidation} currentUser={user} onSubmitReview={handleSubmitReview} onCancelBooking={handleCancelBooking} showToast={showToast} onBack={handleBackFromBooking} />;
       case "profile": return <ProfilePage user={user} onEmailUpdated={setUser} showToast={showToast} />;
       case "superadmin-dashboard": return <SuperAdminDashboard workspaces={managementWorkspaces} bookings={bookings} stats={adminData.stats} users={adminData.users} reports={adminData.reports} onBack={() => setView("landing")} onApproveWorkspace={handleApproveWorkspace} onSuspendWorkspace={handleSuspendWorkspace} onUpdateReport={handleUpdateReport} />;
       default: return <Hero onSearch={() => setView("listings")} />;
