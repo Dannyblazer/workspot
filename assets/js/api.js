@@ -198,6 +198,11 @@
   async function getBooking(id) {
     return request('/bookings/' + id, { auth: true });
   }
+  async function cancelBooking(id) {
+    return request('/bookings/' + encodeURIComponent(id) + '/cancel', {
+      method: 'POST', auth: true
+    });
+  }
   async function validateBookingCode(code) {
     return request('/bookings/validate/' + encodeURIComponent(code), { method: 'POST', auth: true });
   }
@@ -251,7 +256,7 @@
     getToken, setToken, clearToken,
     register, confirmEmail, login, forgotPassword, resetPassword, loginWithGoogle, me, updateEmail, updatePassword,
     listWorkspaces, getWorkspace, getWorkspaceAvailability, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
-    createBooking, checkBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
+    createBooking, checkBooking, confirmPayment, listBookings, getBooking, cancelBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
     adminStats, adminUsers, adminReports, updateAdminReport,
