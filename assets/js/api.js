@@ -18,12 +18,16 @@
 
   // Generic request wrapper
   async function request(path, options = {}) {
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs || 15000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const config = {
       method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      signal: controller.signal,
     };
 
     if (options.auth) {
@@ -37,8 +41,19 @@
       config.body = JSON.stringify(options.body);
     }
 
-    const res = await fetch(API_BASE + path, config);
-    const raw = await res.text();
+    let res;
+    let raw;
+    try {
+      res = await fetch(API_BASE + path, config);
+      raw = await res.text();
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     let data;
     try {
       data = raw ? JSON.parse(raw) : null;
@@ -104,6 +119,10 @@
   }
   async function getWorkspace(id) {
     return request('/workspaces/' + id);
+  }
+  async function getWorkspaceAvailability(id, startAt, endAt) {
+    const params = new URLSearchParams({ startAt, endAt });
+    return request('/workspaces/' + encodeURIComponent(id) + '/availability?' + params.toString());
   }
   async function getReviews(workspaceId) {
     return request('/workspaces/' + workspaceId + '/reviews');
@@ -179,6 +198,11 @@
   async function getBooking(id) {
     return request('/bookings/' + id, { auth: true });
   }
+  async function cancelBooking(id) {
+    return request('/bookings/' + encodeURIComponent(id) + '/cancel', {
+      method: 'POST', auth: true
+    });
+  }
   async function validateBookingCode(code) {
     return request('/bookings/validate/' + encodeURIComponent(code), { method: 'POST', auth: true });
   }
@@ -231,8 +255,8 @@
   window.api = {
     getToken, setToken, clearToken,
     register, confirmEmail, login, forgotPassword, resetPassword, loginWithGoogle, me, updateEmail, updatePassword,
-    listWorkspaces, getWorkspace, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
-    createBooking, checkBooking, confirmPayment, listBookings, getBooking, validateBookingCode,
+    listWorkspaces, getWorkspace, getWorkspaceAvailability, getReviews, createReview, createWorkspace, getUploadSignature, updateAvailability, updateWorkspacePricing, updateWorkspaceLocation, updateWorkspaceApproval, updateWorkspaceSchedule, suspendWorkspace, reportWorkspace, subscribe,
+    createBooking, checkBooking, confirmPayment, listBookings, getBooking, cancelBooking, validateBookingCode,
     listFavorites, addFavorite, removeFavorite,
     ownerStats, listWithdrawals, createWithdrawal,
     adminStats, adminUsers, adminReports, updateAdminReport,
